@@ -298,6 +298,8 @@ type BitBoard5x5 = BitBoard<U5, u32>;
 type BitBoard6x6 = BitBoard<U6, u64>;
 type BitBoard7x7 = BitBoard<U7, u64>;
 type BitBoard8x8 = BitBoard<U8, u64>;
+
+// These don't work yet, don't know why...
 type BitBoard9x9 = BitBoard<U9, u128>;
 type BitBoard10x10 = BitBoard<U10, u128>;
 type BitBoard11x11 = BitBoard<U11, u128>;
@@ -310,11 +312,11 @@ mod tests {
 
     #[test]
     fn it_works() {
-        println!("Size: {}", BitBoard3x3::total_used_bytes());
-        println!("Alignment: {}", BitBoard3x3::alignment());
-        println!("{:?}", BitBoard3x3::layout());
+        println!("Size: {}", BitBoard8x8::total_bytes());
+        println!("Alignment: {}", BitBoard8x8::alignment());
+        println!("{:?}", BitBoard8x8::layout());
 
-        let mut t = BitBoard3x3::default();
+        let mut t = BitBoard8x8::default();
         t.set(0, 1);
         println!("{}", t);
         t = t << 1;
