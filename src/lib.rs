@@ -33,11 +33,21 @@ impl PrimUInt for u64 {}
 impl PrimUInt for u32 {}
 impl PrimUInt for u128 {}
 
+// Essentially the same layout as the original crate, but
+// with the introduction of choice of int representation
+// This was more for me learning about traits and generics
+// than anything else, but it's pretty cool
 pub struct BitBoard<N: Unsigned, R: PrimUInt = u64> {
+    // TODO - wrap this in a Mutex for thread-safety
     ptr: *mut R,
     _typenum: PhantomData<N>,
 }
 
+// TODO: We should expose move_left/move_up stuff here
+// The shift operators shouldn't really be used directly
+// since you can't do the left/right side masking
+
+// In fact we might want to do away with the operators entirely
 impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
     pub fn set(&mut self, x: usize, y: usize) {
         if Self::in_bounds(x, y) {
@@ -74,30 +84,39 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
         (byte_offset as isize, R::from(bit_pos).unwrap())
     }
 
-    #[inline(always)]
-    fn board_size() -> usize {
-        // This could technically be compile-time as well, but the trait bounds were a goddam nightmare...
-        N::to_usize().pow(2)
+    // Retrieve the block i away from ptr
+    unsafe fn block_at(&mut self, i: isize) -> *mut R {
+        self.ptr.offset(i)
     }
+
+    // TODO - Double check this is all actually correct
+    // late night coding = bad arithmetic
 
     /// Total number of bits necessary to represent this BitBoard
     #[inline(always)]
     fn total_bits() -> usize {
-        let remainder = Self::board_size() / Self::alignment_bits();
+        let remainder = Self::total_used_bits() / Self::alignment_bits();
         match remainder {
-            0 => Self::board_size(),
-            _ => Self::board_size() + Self::alignment_bits() - remainder,
+            0 => Self::total_used_bits(),
+            _ => Self::total_used_bits() + Self::alignment_bits() - remainder,
         }
+    }
+
+    #[inline(always)]
+    fn total_used_bits() -> usize {
+        // This could technically be compile-time as well, but the trait bounds were a goddam nightmare...
+        N::to_usize().pow(2)
     }
 
     /// Total number of bytes necessary to represent this BitBoard
     #[inline(always)]
-    pub fn total_bytes() -> usize {
+    fn total_bytes() -> usize {
         (Self::total_bits() as f32 / 8.0).ceil() as usize
     }
 
+    // Total number of bytes with actual data
     #[inline(always)]
-    pub fn total_used_bytes() -> usize {
+    fn total_used_bytes() -> usize {
         (Self::total_bytes() as f32 / Self::alignment() as f32).ceil() as usize
     }
 
@@ -111,14 +130,15 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
         Self::alignment() * 8
     }
 
-    unsafe fn block_at(&mut self, i: isize) -> *mut R {
-        self.ptr.offset(i)
+    #[inline(always)]
+    fn block_size() -> usize {
+        mem::size_of::<R>()
     }
 
-    // Number of bis in a single block
+    // Number of bits in a single block
     #[inline(always)]
     fn block_size_bits() -> usize {
-        mem::size_of::<R>() * 8
+        Self::block_size() * 8
     }
 
     fn layout() -> Layout {
@@ -242,22 +262,17 @@ impl<N: Unsigned, R: PrimUInt> Shr<usize> for BitBoard<N, R> {
 
 impl<N: Unsigned, R: PrimUInt> Debug for BitBoard<N, R> {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        let s = N::to_usize();
-
-        for c in 0..s {
-            for r in 0..s {
-                if self.is_set(r, c) {
-                    write!(f, "1")?;
-                } else {
-                    write!(f, "0")?;
-                }
-            }
-            writeln!(f)?;
-        }
-        write!(f, "")
+        writeln!(
+            f,
+            "TODO: Debug formatting should include all the statics + data"
+        )
     }
 }
 
+// TODO - this currently renders out with 0,0 at bottom left
+// That seemed sensible, but then shifting left technically
+// which is a bit annoying. I reckon we should abstract away the shifting
+// though so might be fine
 impl<N: Unsigned, R: PrimUInt> Display for BitBoard<N, R> {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         let s = N::to_usize();
@@ -288,6 +303,7 @@ type BitBoard10x10 = BitBoard<U10, u128>;
 type BitBoard11x11 = BitBoard<U11, u128>;
 type BitBoard12x12 = BitBoard<U12, u128>;
 
+// TODO - A butt-load of tests, especially around the shifting
 #[cfg(test)]
 mod tests {
     use crate::*;
@@ -301,7 +317,7 @@ mod tests {
         let mut t = BitBoard3x3::default();
         t.set(0, 1);
         println!("{}", t);
-        t = t << 6;
+        t = t << 1;
         println!("{}", t);
         t = t >> 6;
         println!("{}", t);
