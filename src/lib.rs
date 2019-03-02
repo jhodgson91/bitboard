@@ -38,6 +38,11 @@ impl PrimUInt for u128 {}
 // This was more for me learning about traits and generics
 // than anything else, but it's pretty cool
 pub struct BitBoard<N: Unsigned, R: PrimUInt = u64> {
+    // TODO - the nice thing here is that it packs the bitboard
+    // as tightly as possible, while still allowing for any N.
+    // The alternative is a BitVec, but I believe they store
+    // more than they need to, and aren't as smart about
+    // allowing for different int sizes
     // TODO - wrap this in a Mutex for thread-safety
     ptr: *mut R,
     _typenum: PhantomData<N>,
@@ -48,7 +53,18 @@ pub struct BitBoard<N: Unsigned, R: PrimUInt = u64> {
 // since you can't do the left/right side masking
 
 // In fact we might want to do away with the operators entirely
+
+// TODO - need to implement a last_block_mask. Currently if you shift
+// a bit off the board, but not out of the last block, it's possible to shift
+// it back. last_block_mask should be all the bits in the last block valid to our board
+// and should be applied in Shl and Shr on the end block
 impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
+    pub fn new(initial: Vec<(usize, usize)>) -> Self {
+        let mut result = Self::default();
+        initial.iter().for_each(|(x, y)| result.set(*x, *y));
+        result
+    }
+
     pub fn set(&mut self, x: usize, y: usize) {
         if Self::in_bounds(x, y) {
             let (offset, bit_pos) = Self::coords_to_offset_and_pos(x, y);
@@ -264,7 +280,7 @@ impl<N: Unsigned, R: PrimUInt> Debug for BitBoard<N, R> {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         writeln!(
             f,
-            "TODO: Debug formatting should include all the statics + data"
+            "TODO: Debug formatting should include all the statics + raw data"
         )
     }
 }
@@ -310,18 +326,28 @@ type BitBoard12x12 = BitBoard<U12, u128>;
 mod tests {
     use crate::*;
 
+    // Not really a test, just using this for debugging
+    // Easiest way to run this is `cargo test -- --nocapture`
     #[test]
     fn it_works() {
         println!("Size: {}", BitBoard8x8::total_bytes());
         println!("Alignment: {}", BitBoard8x8::alignment());
         println!("{:?}", BitBoard8x8::layout());
 
-        let mut t = BitBoard8x8::default();
-        t.set(0, 1);
+        let mut t = BitBoard8x8::new(vec![
+            (0, 0),
+            (0, 1),
+            (0, 2),
+            (0, 3),
+            (0, 4),
+            (0, 5),
+            (0, 6),
+            (0, 7),
+        ]);
         println!("{}", t);
         t = t << 1;
         println!("{}", t);
-        t = t >> 6;
+        t = t >> 8;
         println!("{}", t);
     }
 }
