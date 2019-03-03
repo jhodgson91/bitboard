@@ -1,3 +1,4 @@
+extern crate criterion;
 extern crate num;
 extern crate typenum;
 
@@ -43,6 +44,13 @@ pub struct BitBoard<N: Unsigned, R: PrimUInt = u64> {
     ptr: *mut R,
     _typenum: PhantomData<N>,
 }
+
+// IDEA: BitBoardStack
+// Tak requires a 3rd dimension. A stack *should* be enough to represent this
+//
+// Can push/pop/insert/remove at
+// Can intersect/union which collapses to a single bitboard
+// Can shift all bitboards in the stack at once ( multi-threaded? )
 
 // TODO: We should expose move_left/move_up stuff here
 // The shift operators shouldn't really be used directly
@@ -194,6 +202,8 @@ impl<N: Unsigned, R: PrimUInt> Clone for BitBoard<N, R> {
     }
 }
 
+// TODO: Is it possible to thread these? Each block would calculate
+// It's own shift it's lost bits, then we'd collect those up at the end...
 impl<N: Unsigned, R: PrimUInt> Shl<usize> for BitBoard<N, R> {
     type Output = Self;
 
