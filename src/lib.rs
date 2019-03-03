@@ -377,4 +377,19 @@ mod tests {
         println!("{}", *shared.lock().unwrap());
         assert_eq!(shared.lock().unwrap().is_set(9, 9), true);
     }
+
+    #[test]
+    fn chess_use_case() {
+        let white_king = 1u64 << 4;
+        println!("{:064b}", white_king);
+        let moves = white_king >> 1 | white_king << 1 | white_king << 8 | white_king >> 8;
+        println!("{:064b}", moves);
+
+        let black_pawn = 1u64 << 12;
+        println!("{:064b}", black_pawn);
+
+        // imagine here that black_pawn is the bitboard of all black pieces
+        let capture = black_pawn & moves;
+        println!("{:064b}", capture);
+    }
 }
