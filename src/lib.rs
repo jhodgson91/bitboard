@@ -31,7 +31,6 @@ impl PrimUInt for u8 {}
 impl PrimUInt for u16 {}
 impl PrimUInt for u64 {}
 impl PrimUInt for u32 {}
-impl PrimUInt for u128 {}
 
 // Essentially the same layout as the original crate, but
 // with the introduction of choice of int representation
@@ -105,35 +104,37 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
         self.ptr.offset(i)
     }
 
-    // TODO - Double check this is all actually correct
-    // late night coding = bad arithmetic
-
-    /// Total number of bits necessary to represent this BitBoard
+    /// Total number of bits on the board
     #[inline(always)]
-    fn total_bits() -> usize {
-        let remainder = Self::total_used_bits() / Self::alignment_bits();
-        match remainder {
-            0 => Self::total_used_bits(),
-            _ => Self::total_used_bits() + Self::alignment_bits() - remainder,
-        }
-    }
-
-    #[inline(always)]
-    fn total_used_bits() -> usize {
+    fn board_size() -> usize {
         // This could technically be compile-time as well, but the trait bounds were a goddam nightmare...
         N::to_usize().pow(2)
     }
 
-    /// Total number of bytes necessary to represent this BitBoard
+    // TODO - Double check this is all actually correct
+    // late night coding = bad arithmetic
+
+    /// Total number of bits necessary to represent this bitboard
+    /// Properly aligned the alignment of R
     #[inline(always)]
-    fn total_bytes() -> usize {
-        (Self::total_bits() as f32 / 8.0).ceil() as usize
+    fn required_bits() -> usize {
+        let remainder = Self::board_size() % Self::alignment_bits();
+        match remainder {
+            0 => Self::board_size(),
+            _ => Self::board_size() + Self::alignment_bits() - remainder,
+        }
     }
 
-    // Total number of bytes with actual data
+    /// Total number of bytes necessary to represent this BitBoard
     #[inline(always)]
-    fn total_used_bytes() -> usize {
-        (Self::total_bytes() as f32 / Self::alignment() as f32).ceil() as usize
+    fn required_bytes() -> usize {
+        (Self::required_bits() as f32 / 8.0).ceil() as usize
+    }
+
+    /// Total number of blocks ( R sized memory chunks ) necessary to reperesent this BitBoard
+    #[inline(always)]
+    fn required_blocks() -> usize {
+        (Self::required_bytes() as f32 / Self::alignment() as f32).ceil() as usize
     }
 
     #[inline(always)]
@@ -157,8 +158,9 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
         Self::block_size() * 8
     }
 
+    #[inline(always)]
     fn layout() -> Layout {
-        Layout::from_size_align(Self::total_bytes(), Self::alignment()).unwrap()
+        Layout::from_size_align(Self::required_bytes(), Self::alignment()).unwrap()
     }
 }
 
@@ -192,7 +194,7 @@ impl<N: Unsigned, R: PrimUInt> Clone for BitBoard<N, R> {
     fn clone(&self) -> Self {
         let result: BitBoard<N, R> = BitBoard::default();
         unsafe {
-            std::ptr::copy(self.ptr as *const R, result.ptr, Self::total_used_bytes());
+            std::ptr::copy(self.ptr as *const R, result.ptr, Self::required_bytes());
         }
         result
     }
@@ -212,7 +214,7 @@ impl<N: Unsigned, R: PrimUInt> Shl<usize> for BitBoard<N, R> {
                 prev_lost = R::zero();
 
                 let to_shift = std::cmp::min(Self::block_size_bits() - 1, rhs);
-                for i in 0..(Self::total_used_bytes() as isize) {
+                for i in 0..(Self::required_blocks() as isize) {
                     current = self.block_at(i);
 
                     // lost bits are either everything in
@@ -254,8 +256,8 @@ impl<N: Unsigned, R: PrimUInt> Shr<usize> for BitBoard<N, R> {
 
                 let to_shift = std::cmp::min(Self::block_size_bits() - 1, rhs);
 
-                for i in 0..=(Self::total_used_bytes() as isize) {
-                    current = self.block_at(Self::total_used_bytes() as isize - i);
+                for i in 0..=(Self::required_blocks() as isize) {
+                    current = self.block_at(Self::required_blocks() as isize - i);
 
                     lost = if to_shift < Self::block_size_bits() {
                         *current << (Self::block_size_bits() - to_shift)
@@ -278,10 +280,16 @@ impl<N: Unsigned, R: PrimUInt> Shr<usize> for BitBoard<N, R> {
 
 impl<N: Unsigned, R: PrimUInt> Debug for BitBoard<N, R> {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        writeln!(
-            f,
-            "TODO: Debug formatting should include all the statics + raw data"
-        )
+        writeln!(f)?;
+        writeln!(f, "{s}x{s} BitBoard: ", s = N::to_usize())?;
+        writeln!(f, "Size            : {} bits", Self::board_size())?;
+        writeln!(f, "Block size      : {}-bit", Self::block_size_bits())?;
+        writeln!(f, "Required blocks : {}", Self::required_blocks())?;
+        writeln!(f, "Allocated bytes : {}", Self::required_bytes())?;
+        writeln!(f, "Allocated bits  : {}", Self::required_bits())?;
+        writeln!(f, "Alignment       : {}", Self::alignment())?;
+        // TODO - format the data split into block-sized blocks
+        Ok(())
     }
 }
 
@@ -307,19 +315,12 @@ impl<N: Unsigned, R: PrimUInt> Display for BitBoard<N, R> {
     }
 }
 
-type BitBoard2x2 = BitBoard<U2, u8>;
 type BitBoard3x3 = BitBoard<U3, u16>;
 type BitBoard4x4 = BitBoard<U4, u16>;
 type BitBoard5x5 = BitBoard<U5, u32>;
 type BitBoard6x6 = BitBoard<U6, u64>;
 type BitBoard7x7 = BitBoard<U7, u64>;
 type BitBoard8x8 = BitBoard<U8, u64>;
-
-// These don't work yet, don't know why...
-type BitBoard9x9 = BitBoard<U9, u128>;
-type BitBoard10x10 = BitBoard<U10, u128>;
-type BitBoard11x11 = BitBoard<U11, u128>;
-type BitBoard12x12 = BitBoard<U12, u128>;
 
 // TODO - A butt-load of tests, especially around the shifting
 #[cfg(test)]
@@ -330,24 +331,7 @@ mod tests {
     // Easiest way to run this is `cargo test -- --nocapture`
     #[test]
     fn it_works() {
-        println!("Size: {}", BitBoard8x8::total_bytes());
-        println!("Alignment: {}", BitBoard8x8::alignment());
-        println!("{:?}", BitBoard8x8::layout());
-
-        let mut t = BitBoard8x8::new(vec![
-            (0, 0),
-            (0, 1),
-            (0, 2),
-            (0, 3),
-            (0, 4),
-            (0, 5),
-            (0, 6),
-            (0, 7),
-        ]);
-        println!("{}", t);
-        t = t << 1;
-        println!("{}", t);
-        t = t >> 8;
-        println!("{}", t);
+        let mut t = BitBoard::<U5, u8>::new(vec![(0, 1)]);
+        dbg!(t);
     }
 }
