@@ -1,15 +1,12 @@
-#![feature(allocator_api)]
-
 extern crate num;
 extern crate typenum;
 
 use num::PrimInt;
-use std::alloc::{Alloc, Layout, System};
+use std::alloc::{self, Layout};
 use std::fmt::{Binary, Debug, Display, Formatter};
 use std::marker::PhantomData;
 use std::mem;
 use std::ops::{BitAndAssign, BitOrAssign, Shl, ShlAssign, Shr, ShrAssign};
-use std::ptr::NonNull;
 use typenum::*;
 
 pub trait PrimUInt:
@@ -78,12 +75,17 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
         }
     }
 
+    // TODO: return a result/option
     pub fn is_set(&self, x: usize, y: usize) -> bool {
         if Self::in_bounds(x, y) {
             let (offset, bit_pos) = Self::coords_to_offset_and_pos(x, y);
             return unsafe { (*self.ptr.offset(offset) & bit_pos) != R::zero() };
         }
         false
+    }
+
+    pub unsafe fn block_at(&mut self, i: isize) -> *mut R {
+        self.ptr.offset(i)
     }
 
     fn in_bounds(x: usize, y: usize) -> bool {
@@ -97,11 +99,6 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
 
         // TODO: Unwrap here
         (byte_offset as isize, R::from(bit_pos).unwrap())
-    }
-
-    // Retrieve the block i away from ptr
-    unsafe fn block_at(&mut self, i: isize) -> *mut R {
-        self.ptr.offset(i)
     }
 
     /// Total number of bits on the board
@@ -170,10 +167,7 @@ impl<N: Unsigned, R: PrimUInt> Default for BitBoard<N, R> {
         let ptr;
 
         unsafe {
-            match System.alloc_zeroed(layout) {
-                Ok(p) => ptr = p.as_ptr() as *mut R,
-                Err(e) => panic!("Failed to allocate bitboard! {}", e),
-            }
+            ptr = alloc::alloc_zeroed(layout) as *mut R;
         };
 
         BitBoard {
@@ -186,7 +180,7 @@ impl<N: Unsigned, R: PrimUInt> Default for BitBoard<N, R> {
 impl<N: Unsigned, R: PrimUInt> Drop for BitBoard<N, R> {
     fn drop(&mut self) {
         let layout = Self::layout();
-        unsafe { System.dealloc(NonNull::new(self.ptr as *mut _).unwrap(), layout) }
+        unsafe { alloc::dealloc(self.ptr as *mut u8, layout) }
     }
 }
 
@@ -331,7 +325,8 @@ mod tests {
     // Easiest way to run this is `cargo test -- --nocapture`
     #[test]
     fn it_works() {
-        let mut t = BitBoard::<U5, u8>::new(vec![(0, 1)]);
-        dbg!(t);
+        let mut t = BitBoard::<U10, u8>::new(vec![(0, 1)]);
+        t = t << 5;
+        println!("{}", t);
     }
 }
