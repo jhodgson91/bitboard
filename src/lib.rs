@@ -8,6 +8,7 @@ use std::fmt::{Binary, Debug, Display, Formatter};
 use std::marker::PhantomData;
 use std::mem;
 use std::ops::{BitAndAssign, BitOrAssign, Shl, ShlAssign, Shr, ShrAssign};
+use std::sync::Mutex;
 use typenum::*;
 
 pub trait PrimUInt:
@@ -30,6 +31,11 @@ impl PrimUInt for u16 {}
 impl PrimUInt for u64 {}
 impl PrimUInt for u32 {}
 
+enum ShiftDirection {
+    Left,
+    Right,
+}
+
 // Essentially the same layout as the original crate, but
 // with the introduction of choice of int representation
 // This was more for me learning about traits and generics
@@ -40,7 +46,6 @@ pub struct BitBoard<N: Unsigned, R: PrimUInt = u64> {
     // The alternative is a BitVec, but I believe they store
     // more than they need to, and aren't as smart about
     // allowing for different int sizes
-    // TODO - wrap this in a Mutex for thread-safety
     ptr: *mut R,
     _typenum: PhantomData<N>,
 }
@@ -49,7 +54,7 @@ pub struct BitBoard<N: Unsigned, R: PrimUInt = u64> {
 // Tak requires a 3rd dimension. A stack *should* be enough to represent this
 //
 // Can push/pop/insert/remove at
-// Can intersect/union which collapses to a single bitboard
+// Can intersect/union which collapses to a single bitboard ( multi-threaded? )
 // Can shift all bitboards in the stack at once ( multi-threaded? )
 
 // TODO: We should expose move_left/move_up stuff here
@@ -71,36 +76,40 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
 
     pub fn set(&mut self, x: usize, y: usize) {
         if Self::in_bounds(x, y) {
-            let (offset, bit_pos) = Self::coords_to_offset_and_pos(x, y);
-            unsafe { (*self.ptr.offset(offset) |= bit_pos) };
+            let (offset, bit_pos) = Self::map_coords(x, y);
+            unsafe { (**self.block_at_mut(offset).lock().unwrap() |= bit_pos) };
         }
     }
 
     pub fn unset(&mut self, x: usize, y: usize) {
         if Self::in_bounds(x, y) {
-            let (offset, bit_pos) = Self::coords_to_offset_and_pos(x, y);
-            unsafe { (*self.ptr.offset(offset) &= !bit_pos) };
+            let (offset, bit_pos) = Self::map_coords(x, y);
+            unsafe { (**self.block_at_mut(offset).lock().unwrap() &= !bit_pos) };
         }
     }
 
-    // TODO: return a result/option
+    // TODO: return a result/option?
     pub fn is_set(&self, x: usize, y: usize) -> bool {
         if Self::in_bounds(x, y) {
-            let (offset, bit_pos) = Self::coords_to_offset_and_pos(x, y);
-            return unsafe { (*self.ptr.offset(offset) & bit_pos) != R::zero() };
+            let (offset, bit_pos) = Self::map_coords(x, y);
+            return unsafe { (**self.block_at(offset).lock().unwrap() & bit_pos) != R::zero() };
         }
         false
     }
 
-    pub unsafe fn block_at(&mut self, i: isize) -> *mut R {
-        self.ptr.offset(i)
+    unsafe fn block_at(&self, i: isize) -> Mutex<*const R> {
+        Mutex::new(self.ptr.offset(i) as *const R)
+    }
+
+    unsafe fn block_at_mut(&mut self, i: isize) -> Mutex<*mut R> {
+        Mutex::new(self.ptr.offset(i))
     }
 
     fn in_bounds(x: usize, y: usize) -> bool {
         x < N::to_usize() && y < N::to_usize()
     }
 
-    fn coords_to_offset_and_pos(x: usize, y: usize) -> (isize, R) {
+    fn map_coords(x: usize, y: usize) -> (isize, R) {
         let pos = x + y * N::to_usize();
         let byte_offset = pos / Self::alignment_bits();
         let bit_pos: usize = 1 << (pos % Self::alignment_bits());
@@ -163,6 +172,54 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
         Self::block_size() * 8
     }
 
+    // It could be possible to thread this, but not sure it's worth it
+    // For each loop in the while, we could do threaded shift calculations
+    // then apply them all at the end
+    unsafe fn shift_internal(&mut self, mut rhs: usize, direction: ShiftDirection) {
+        let mut lost: R;
+        let mut prev_lost: R;
+
+        let mut current: *mut R;
+
+        // Wanted this to be a tuple but the matching wouldn't work
+        let shift = match direction {
+            ShiftDirection::Left => R::shl,
+            ShiftDirection::Right => R::shr,
+        };
+
+        let reverse = match direction {
+            ShiftDirection::Left => R::shr,
+            ShiftDirection::Right => R::shl,
+        };
+
+        while rhs > 0 {
+            prev_lost = R::zero();
+
+            let to_shift = std::cmp::min(Self::block_size_bits() - 1, rhs);
+            for i in 0..(Self::required_blocks() as isize) {
+                current = *self.block_at_mut(i).lock().unwrap();
+
+                // lost bits are either everything in
+                // this block if shift is larger than bit
+                // size or the reverse of the shift
+                lost = if to_shift < Self::block_size_bits() {
+                    reverse(*current, Self::block_size_bits() - to_shift)
+                } else {
+                    *current
+                };
+
+                *current = shift(*current, to_shift);
+
+                // Set any bits that were lost from the previous block
+                *current |= prev_lost;
+
+                prev_lost = lost;
+            }
+
+            rhs -= to_shift;
+        }
+    }
+
     #[inline(always)]
     fn layout() -> Layout {
         Layout::from_size_align(Self::required_bytes(), Self::alignment()).unwrap()
@@ -179,7 +236,7 @@ impl<N: Unsigned, R: PrimUInt> Default for BitBoard<N, R> {
         };
 
         BitBoard {
-            ptr,
+            ptr: ptr,
             _typenum: PhantomData,
         }
     }
@@ -202,83 +259,46 @@ impl<N: Unsigned, R: PrimUInt> Clone for BitBoard<N, R> {
     }
 }
 
-// TODO: Is it possible to thread these? Each block would calculate
-// It's own shift it's lost bits, then we'd collect those up at the end...
-impl<N: Unsigned, R: PrimUInt> Shl<usize> for BitBoard<N, R> {
-    type Output = Self;
+unsafe impl<N: Unsigned, R: PrimUInt> Send for BitBoard<N, R> {}
+unsafe impl<N: Unsigned, R: PrimUInt> Sync for BitBoard<N, R> {}
 
-    fn shl(mut self, mut rhs: usize) -> Self {
-        let mut lost: R;
-        let mut prev_lost: R;
-
-        let mut current: *mut R;
-
+impl<N: Unsigned, R: PrimUInt> ShlAssign<usize> for BitBoard<N, R> {
+    fn shl_assign(&mut self, rhs: usize) {
         unsafe {
-            while rhs > 0 {
-                prev_lost = R::zero();
-
-                let to_shift = std::cmp::min(Self::block_size_bits() - 1, rhs);
-                for i in 0..(Self::required_blocks() as isize) {
-                    current = self.block_at(i);
-
-                    // lost bits are either everything in
-                    // this block if shift is larger than bit
-                    // size or the reverse of the shift
-                    lost = if to_shift < Self::block_size_bits() {
-                        *current >> (Self::block_size_bits() - to_shift)
-                    } else {
-                        *current
-                    };
-
-                    *current = *current << to_shift;
-
-                    // Set any bits that were lost from the previous block
-                    *current |= prev_lost;
-
-                    prev_lost = lost;
-                }
-
-                rhs -= to_shift;
-            }
+            self.shift_internal(rhs, ShiftDirection::Left);
         }
-        self.clone()
     }
 }
 
-impl<N: Unsigned, R: PrimUInt> Shr<usize> for BitBoard<N, R> {
-    type Output = Self;
-
-    fn shr(mut self, mut rhs: usize) -> Self {
-        let mut lost: R;
-        let mut prev_lost: R;
-
-        let mut current: *mut R;
-
+impl<N: Unsigned, R: PrimUInt> ShrAssign<usize> for BitBoard<N, R> {
+    fn shr_assign(&mut self, rhs: usize) {
         unsafe {
-            while rhs > 0 {
-                prev_lost = R::zero();
-
-                let to_shift = std::cmp::min(Self::block_size_bits() - 1, rhs);
-
-                for i in 0..=(Self::required_blocks() as isize) {
-                    current = self.block_at(Self::required_blocks() as isize - i);
-
-                    lost = if to_shift < Self::block_size_bits() {
-                        *current << (Self::block_size_bits() - to_shift)
-                    } else {
-                        *current
-                    };
-
-                    *current = *current >> to_shift;
-                    *current |= prev_lost;
-
-                    prev_lost = lost;
-                }
-
-                rhs -= to_shift;
-            }
+            self.shift_internal(rhs, ShiftDirection::Right);
         }
-        self.clone()
+    }
+}
+
+impl<N: Unsigned, R: PrimUInt> Shl<usize> for &BitBoard<N, R> {
+    type Output = BitBoard<N, R>;
+
+    fn shl(self, rhs: usize) -> Self::Output {
+        let mut result = self.clone();
+        unsafe {
+            result.shift_internal(rhs, ShiftDirection::Right);
+        }
+        result
+    }
+}
+
+impl<N: Unsigned, R: PrimUInt> Shr<usize> for &BitBoard<N, R> {
+    type Output = BitBoard<N, R>;
+
+    fn shr(self, rhs: usize) -> Self::Output {
+        let mut result = self.clone();
+        unsafe {
+            result.shift_internal(rhs, ShiftDirection::Right);
+        }
+        result
     }
 }
 
@@ -330,13 +350,31 @@ type BitBoard8x8 = BitBoard<U8, u64>;
 #[cfg(test)]
 mod tests {
     use crate::*;
+    use std::sync::{Arc, Mutex};
+    use std::thread;
 
     // Not really a test, just using this for debugging
     // Easiest way to run this is `cargo test -- --nocapture`
     #[test]
     fn it_works() {
-        let mut t = BitBoard::<U10, u8>::new(vec![(0, 1)]);
-        t = t << 5;
-        println!("{}", t);
+        let mut t = BitBoard::<U10, u8>::new(vec![(0, 0)]);
+        let shared = Arc::new(Mutex::new(t));
+
+        // Kind of pointless, but just seeing if passing between threads works
+        let mut threads = vec![];
+        for i in 0..99 {
+            let passed = shared.clone();
+            threads.push(thread::spawn(move || {
+                let bb = &mut *passed.lock().unwrap();
+                *bb <<= 1;
+            }))
+        }
+
+        for thread in threads {
+            thread.join();
+        }
+
+        println!("{}", *shared.lock().unwrap());
+        assert_eq!(shared.lock().unwrap().is_set(9, 9), true);
     }
 }
