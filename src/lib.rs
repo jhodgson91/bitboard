@@ -225,8 +225,6 @@ impl<N: Unsigned, R: PrimUInt> Default for BitBoard<N, R> {
             ptr = alloc::alloc_zeroed(layout) as *mut R;
         };
 
-        println!("Allocated BB at {:?}", ptr);
-
         BitBoard {
             ptr,
             _typenum: PhantomData,
@@ -237,7 +235,6 @@ impl<N: Unsigned, R: PrimUInt> Default for BitBoard<N, R> {
 impl<N: Unsigned, R: PrimUInt> Drop for BitBoard<N, R> {
     fn drop(&mut self) {
         let layout = Self::layout();
-        println!("Dropping BB at {:?}", self.ptr);
         unsafe { alloc::dealloc(self.ptr as *mut u8, layout) }
     }
 }
@@ -252,7 +249,6 @@ impl<N: Unsigned, R: PrimUInt> Clone for BitBoard<N, R> {
                 Self::required_bytes(),
             );
         }
-        println!("Cloned BB still at {:?}", &result.ptr);
         result
     }
 }
