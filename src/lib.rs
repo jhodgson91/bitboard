@@ -7,7 +7,7 @@ use std::alloc::{self, Layout};
 use std::fmt::{Binary, Debug, Display, Formatter};
 use std::marker::PhantomData;
 use std::mem;
-use std::ops::{BitAndAssign, BitOrAssign, Shl, ShlAssign, Shr, ShrAssign};
+use std::ops::{BitAnd, BitAndAssign, BitOr,BitOrAssign, Shl, ShlAssign, Shr, ShrAssign};
 use std::sync::Mutex;
 use typenum::*;
 
@@ -15,7 +15,9 @@ pub trait PrimUInt:
     PrimInt
     + num::Unsigned
     + num::Zero
+    + BitAnd
     + BitAndAssign
+    + BitOr
     + BitOrAssign
     + Display
     + Binary
@@ -28,8 +30,8 @@ pub trait PrimUInt:
 
 impl PrimUInt for u8 {}
 impl PrimUInt for u16 {}
-impl PrimUInt for u64 {}
 impl PrimUInt for u32 {}
+impl PrimUInt for u64 {}
 
 enum ShiftDirection {
     Left,
@@ -123,6 +125,11 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
     fn board_size() -> usize {
         // This could technically be compile-time as well, but the trait bounds were a goddam nightmare...
         N::to_usize().pow(2)
+    }
+
+    // the number of pointers we need to iterate through
+    fn pointer_size() -> usize {
+        Self::required_bits() / Self::alignment_bits()
     }
 
     // TODO - Double check this is all actually correct
@@ -226,6 +233,35 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
     }
 }
 
+impl<N: Unsigned, R: PrimUInt> BitAnd for BitBoard<N, R> {
+    type Output = BitBoard<N, R>;
+
+    fn bitand(self, other: BitBoard<N, R>) -> BitBoard<N, R> {
+        let new_bb : BitBoard<N, R> = BitBoard::default();
+        unsafe {
+            *new_bb.ptr = *self.ptr & *other.ptr;
+        }
+        
+        return new_bb;
+    }
+}
+
+impl<N: Unsigned, R: PrimUInt> BitOr for BitBoard<N, R> {
+    type Output = BitBoard<N, R>;
+
+    fn bitor(self, other: BitBoard<N, R>) -> Self::Output {
+        let new_bb : BitBoard<N, R> = BitBoard::default();
+        for amt in 0..(Self::pointer_size() as isize) {
+            unsafe {
+                *new_bb.ptr.offset(amt) = *self.ptr.offset(amt) 
+                    | *other.ptr.offset(amt)
+            }
+        }
+      
+        return new_bb;
+    }
+}
+
 impl<N: Unsigned, R: PrimUInt> Default for BitBoard<N, R> {
     fn default() -> Self {
         let layout = Self::layout();
@@ -278,7 +314,7 @@ impl<N: Unsigned, R: PrimUInt> ShrAssign<usize> for BitBoard<N, R> {
     }
 }
 
-impl<N: Unsigned, R: PrimUInt> Shl<usize> for &BitBoard<N, R> {
+impl<N: Unsigned, R: PrimUInt> Shl<usize> for BitBoard<N, R> {
     type Output = BitBoard<N, R>;
 
     fn shl(self, rhs: usize) -> Self::Output {
@@ -290,7 +326,7 @@ impl<N: Unsigned, R: PrimUInt> Shl<usize> for &BitBoard<N, R> {
     }
 }
 
-impl<N: Unsigned, R: PrimUInt> Shr<usize> for &BitBoard<N, R> {
+impl<N: Unsigned, R: PrimUInt> Shr<usize> for BitBoard<N, R> {
     type Output = BitBoard<N, R>;
 
     fn shr(self, rhs: usize) -> Self::Output {
@@ -379,7 +415,17 @@ mod tests {
     }
 
     #[test]
-    fn chess_use_case() {
+    fn or() {
+        let a = BitBoard::<U5, u32>::new(vec![(2, 2), (3, 3)]);
+        let b = BitBoard::<U5, u32>::new(vec![(1, 1), (2, 2)]);
+        let c = a | b;
+        assert_eq!(c.is_set(1, 1), true);
+        assert_eq!(c.is_set(2, 2), true);
+        assert_eq!(c.is_set(3, 3), true);
+    }
+
+    #[test]
+    fn chess_with_u64() {
         let white_king = 1u64 << 4;
         println!("{:064b}", white_king);
         let moves = white_king >> 1 | white_king << 1 | white_king << 8 | white_king >> 8;
@@ -391,5 +437,19 @@ mod tests {
         // imagine here that black_pawn is the bitboard of all black pieces
         let capture = black_pawn & moves;
         println!("{:064b}", capture);
+    }
+
+    #[test]
+    fn chess_with_bitboard() {
+        let white_king = BitBoard::<U8, u64>::new(vec![(4, 0)]);
+        println!("{}", white_king);
+        let moves = white_king >> 1 | white_king << 1 | white_king << 8 | white_king >> 8;
+        println!("{}", moves);
+
+        let black_pawn = BitBoard::<U8, u64>::new(vec![(12, 0)]);
+        println!("{}", black_pawn);
+
+        let capture = black_pawn & moves;
+        println!("{}", capture);
     }
 }
