@@ -10,6 +10,9 @@ use std::mem;
 use std::ops::{BitAndAssign, BitOrAssign, Shl, ShlAssign, Shr, ShrAssign};
 use typenum::*;
 
+#[cfg(test)]
+mod tests;
+
 pub trait PrimUInt:
     PrimInt
     + num::Unsigned
@@ -36,7 +39,7 @@ enum ShiftDirection {
 }
 
 pub struct BitBoard<N: Unsigned, R: PrimUInt = u64> {
-    ptr: *mut R,
+    pub ptr: *mut R,
     _typenum: PhantomData<N>,
 }
 
@@ -64,7 +67,6 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
         }
     }
 
-    // TODO: return a result/option?
     pub fn is_set(&self, x: usize, y: usize) -> bool {
         if Self::in_bounds(x, y) {
             let (offset, bit_pos) = Self::map_coords(x, y);
@@ -72,6 +74,16 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
         } else {
             false
         }
+    }
+
+    pub fn count_ones(&self) -> usize {
+        let mut result: usize = 0;
+        for b in self {
+            if b {
+                result += 1;
+            }
+        }
+        result
     }
 
     fn in_bounds(x: usize, y: usize) -> bool {
@@ -84,6 +96,18 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
         let bit_pos: usize = 1 << (pos % Self::alignment_bits());
 
         (byte_offset as isize, R::from(bit_pos).unwrap())
+    }
+
+    unsafe fn for_each_block(&self, op: impl Fn(R)) {
+        for i in 0..Self::required_blocks() {
+            op(self.block_at(i as isize));
+        }
+    }
+
+    unsafe fn for_each_block_mut(&mut self, mut op: impl FnMut(*mut R)) {
+        for i in 0..Self::required_blocks() {
+            op(self.block_at_mut(i as isize));
+        }
     }
 
     #[inline(always)]
@@ -99,7 +123,7 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
     /// Total number of bits on the board
     #[inline(always)]
     fn board_size() -> usize {
-        N::to_usize().pow(2)
+        N::USIZE * N::USIZE
     }
 
     /// Total number of bits necessary to represent this bitboard
@@ -147,10 +171,8 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
     }
 
     unsafe fn shift_internal(&mut self, mut rhs: usize, direction: ShiftDirection) {
-        let mut lost: R;
+        let mut lost: R = R::zero();
         let mut prev_lost: R;
-
-        let mut current: *mut R;
 
         let shift = match direction {
             ShiftDirection::Left => R::shl,
@@ -164,27 +186,25 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
 
         while rhs > 0 {
             prev_lost = R::zero();
-
             let to_shift = std::cmp::min(Self::block_size_bits() - 1, rhs);
-            for i in 0..(Self::required_blocks() as isize) {
-                current = self.block_at_mut(i);
 
+            self.for_each_block_mut(|block| {
                 // lost bits are either everything in
                 // this block if shift is larger than bit
                 // size or the reverse of the shift
                 lost = if to_shift < Self::block_size_bits() {
-                    reverse(*current, Self::block_size_bits() - to_shift)
+                    reverse(*block, Self::block_size_bits() - to_shift)
                 } else {
-                    *current
+                    *block
                 };
 
-                *current = shift(*current, to_shift);
+                *block = shift(*block, to_shift);
 
                 // Set any bits that were lost from the previous block
-                *current |= prev_lost;
+                *block |= prev_lost;
 
                 prev_lost = lost;
-            }
+            });
 
             rhs -= to_shift;
         }
@@ -205,8 +225,10 @@ impl<N: Unsigned, R: PrimUInt> Default for BitBoard<N, R> {
             ptr = alloc::alloc_zeroed(layout) as *mut R;
         };
 
+        println!("Allocated BB at {:?}", ptr);
+
         BitBoard {
-            ptr: ptr,
+            ptr,
             _typenum: PhantomData,
         }
     }
@@ -215,17 +237,59 @@ impl<N: Unsigned, R: PrimUInt> Default for BitBoard<N, R> {
 impl<N: Unsigned, R: PrimUInt> Drop for BitBoard<N, R> {
     fn drop(&mut self) {
         let layout = Self::layout();
+        println!("Dropping BB at {:?}", self.ptr);
         unsafe { alloc::dealloc(self.ptr as *mut u8, layout) }
     }
 }
 
 impl<N: Unsigned, R: PrimUInt> Clone for BitBoard<N, R> {
     fn clone(&self) -> Self {
-        let result: BitBoard<N, R> = BitBoard::default();
+        let result = BitBoard::<N, R>::default();
         unsafe {
-            std::ptr::copy(self.ptr as *const R, result.ptr, Self::required_bytes());
+            std::ptr::copy(
+                self.ptr as *const u8,
+                result.ptr as *mut u8,
+                Self::required_bytes(),
+            );
         }
+        println!("Cloned BB still at {:?}", &result.ptr);
         result
+    }
+}
+
+impl<'a, N: Unsigned, R: PrimUInt> IntoIterator for &'a BitBoard<N, R> {
+    type Item = bool;
+    type IntoIter = BitBoardIter<'a, N, R>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        BitBoardIter {
+            cell: (0, 0),
+            board: self,
+        }
+    }
+}
+
+pub struct BitBoardIter<'a, N: Unsigned, R: PrimUInt = u64> {
+    cell: (usize, usize),
+    board: &'a BitBoard<N, R>,
+}
+
+impl<'a, N: Unsigned, R: PrimUInt> Iterator for BitBoardIter<'a, N, R> {
+    type Item = bool;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.cell.1 >= N::USIZE {
+            None
+        } else {
+            let result = self.board.is_set(self.cell.0, self.cell.1);
+            if self.cell.0 < N::USIZE {
+                self.cell.0 = (self.cell.0 + 1) % N::USIZE;
+                if self.cell.0 == 0 {
+                    self.cell.1 += 1;
+                }
+            }
+
+            Some(result)
+        }
     }
 }
 
@@ -254,7 +318,7 @@ impl<N: Unsigned, R: PrimUInt> Shl<usize> for &BitBoard<N, R> {
     fn shl(self, rhs: usize) -> Self::Output {
         let mut result = self.clone();
         unsafe {
-            result.shift_internal(rhs, ShiftDirection::Right);
+            result.shift_internal(rhs, ShiftDirection::Left);
         }
         result
     }
@@ -282,7 +346,7 @@ impl<N: Unsigned, R: PrimUInt> Debug for BitBoard<N, R> {
         writeln!(f, "Allocated bytes : {}", Self::required_bytes())?;
         writeln!(f, "Allocated bits  : {}", Self::required_bits())?;
         writeln!(f, "Alignment       : {}", Self::alignment())?;
-        writeln!(f, "Data:")?;
+        writeln!(f, "Data            : {:?}", self.ptr)?;
         unsafe {
             for i in 0..Self::required_blocks() {
                 let block = self.block_at(i as isize);
@@ -324,40 +388,9 @@ impl<N: Unsigned, R: PrimUInt> Display for BitBoard<N, R> {
     }
 }
 
-type BitBoard3x3 = BitBoard<U3, u16>;
-type BitBoard4x4 = BitBoard<U4, u16>;
-type BitBoard5x5 = BitBoard<U5, u32>;
-type BitBoard6x6 = BitBoard<U6, u64>;
-type BitBoard7x7 = BitBoard<U7, u64>;
-type BitBoard8x8 = BitBoard<U8, u64>;
-
-#[cfg(test)]
-mod tests {
-    use crate::*;
-    use std::sync::{Arc, Mutex};
-    use std::thread;
-
-    #[test]
-    fn threaded_shift() {
-        let t = BitBoard::<U10, u8>::new(vec![(0, 0)]);
-        let shared = Arc::new(Mutex::new(t));
-
-        let mut threads = vec![];
-        for _i in 0..99 {
-            let passed = shared.clone();
-            threads.push(thread::spawn(move || {
-                let bb = &mut *passed.lock().unwrap();
-                *bb <<= 1;
-            }))
-        }
-
-        for thread in threads {
-            thread.join().unwrap();
-        }
-
-        println!("{}", *shared.lock().unwrap());
-        assert_eq!(shared.lock().unwrap().is_set(9, 9), true);
-
-        dbg!(&*shared.lock().unwrap());
-    }
-}
+pub type BitBoard3x3 = BitBoard<U3, u16>;
+pub type BitBoard4x4 = BitBoard<U4, u16>;
+pub type BitBoard5x5 = BitBoard<U5, u32>;
+pub type BitBoard6x6 = BitBoard<U6, u64>;
+pub type BitBoard7x7 = BitBoard<U7, u64>;
+pub type BitBoard8x8 = BitBoard<U8, u64>;

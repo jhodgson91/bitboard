@@ -8,6 +8,9 @@
   - Can shift all bitboards in the stack at once ( multi-threaded? )
 - Block iterators
   - for_each_block and for_each_block_mut functions that take closures - could tidy up all the loops we need to do
+- Bit iterator
+  - iterator that returns a bool for every cell
+  - Can be used for things like counting no. of cells set
 
 ## TODOs
 
