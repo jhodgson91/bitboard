@@ -39,7 +39,7 @@ enum ShiftDirection {
 }
 
 pub struct BitBoard<N: Unsigned, R: PrimUInt = u64> {
-    pub ptr: *mut R,
+    ptr: *mut R,
     _typenum: PhantomData<N>,
 }
 
