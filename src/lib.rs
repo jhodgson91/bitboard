@@ -23,6 +23,8 @@ pub trait PrimUInt:
     + Shr
     + ShlAssign
     + ShrAssign
+    + Sized
+    + Debug
 {
 }
 
@@ -46,7 +48,7 @@ pub struct BitBoard<N: Unsigned, R: PrimUInt = u64> {
     // The alternative is a BitVec, but I believe they store
     // more than they need to, and aren't as smart about
     // allowing for different int sizes
-    ptr: *mut R,
+    ptr: Mutex<*mut R>,
     _typenum: PhantomData<N>,
 }
 
@@ -70,21 +72,32 @@ pub struct BitBoard<N: Unsigned, R: PrimUInt = u64> {
 impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
     pub fn new(initial: Vec<(usize, usize)>) -> Self {
         let mut result = Self::default();
-        initial.iter().for_each(|(x, y)| result.set(*x, *y));
+        initial.iter().for_each(|(x, y)| {
+            result.set(*x, *y);
+        });
+
         result
     }
 
     pub fn set(&mut self, x: usize, y: usize) {
         if Self::in_bounds(x, y) {
             let (offset, bit_pos) = Self::map_coords(x, y);
-            unsafe { (**self.block_at_mut(offset).lock().unwrap() |= bit_pos) };
+            unsafe {
+                self.access_block_mut(offset, |block| {
+                    *block |= bit_pos;
+                });
+            }
         }
     }
 
     pub fn unset(&mut self, x: usize, y: usize) {
         if Self::in_bounds(x, y) {
             let (offset, bit_pos) = Self::map_coords(x, y);
-            unsafe { (**self.block_at_mut(offset).lock().unwrap() &= !bit_pos) };
+            unsafe {
+                self.access_block_mut(offset, |block| {
+                    *block &= !bit_pos;
+                });
+            }
         }
     }
 
@@ -92,17 +105,25 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
     pub fn is_set(&self, x: usize, y: usize) -> bool {
         if Self::in_bounds(x, y) {
             let (offset, bit_pos) = Self::map_coords(x, y);
-            return unsafe { (**self.block_at(offset).lock().unwrap() & bit_pos) != R::zero() };
+            unsafe { self.access_block(offset, |block| *block & bit_pos != R::zero()) }
+        } else {
+            false
         }
-        false
     }
 
-    unsafe fn block_at(&self, i: isize) -> Mutex<*const R> {
-        Mutex::new(self.ptr.offset(i) as *const R)
+    // TODO - these should return Result<Return, PoisonError> instead of just expecting that it worked
+    unsafe fn access_block<Return>(&self, i: isize, op: impl FnOnce(*const R) -> Return) -> Return {
+        let block = self.ptr.lock().unwrap();
+        op(block.offset(i) as *const R)
     }
 
-    unsafe fn block_at_mut(&mut self, i: isize) -> Mutex<*mut R> {
-        Mutex::new(self.ptr.offset(i))
+    unsafe fn access_block_mut<Return>(
+        &mut self,
+        i: isize,
+        mut op: impl FnMut(*mut R) -> Return,
+    ) -> Return {
+        let block = self.ptr.lock().unwrap();
+        op(block.offset(i))
     }
 
     fn in_bounds(x: usize, y: usize) -> bool {
@@ -176,10 +197,8 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
     // For each loop in the while, we could do threaded shift calculations
     // then apply them all at the end
     unsafe fn shift_internal(&mut self, mut rhs: usize, direction: ShiftDirection) {
-        let mut lost: R;
+        let mut lost: R = R::zero();
         let mut prev_lost: R;
-
-        let mut current: *mut R;
 
         // Wanted this to be a tuple but the matching wouldn't work
         let shift = match direction {
@@ -197,23 +216,20 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
 
             let to_shift = std::cmp::min(Self::block_size_bits() - 1, rhs);
             for i in 0..(Self::required_blocks() as isize) {
-                current = *self.block_at_mut(i).lock().unwrap();
+                self.access_block_mut(i, |block| {
+                    lost = if to_shift < Self::block_size_bits() {
+                        reverse(*block, Self::block_size_bits() - to_shift)
+                    } else {
+                        *block
+                    };
 
-                // lost bits are either everything in
-                // this block if shift is larger than bit
-                // size or the reverse of the shift
-                lost = if to_shift < Self::block_size_bits() {
-                    reverse(*current, Self::block_size_bits() - to_shift)
-                } else {
-                    *current
-                };
+                    *block = shift(*block, to_shift);
 
-                *current = shift(*current, to_shift);
+                    // Set any bits that were lost from the previous block
+                    *block |= prev_lost;
 
-                // Set any bits that were lost from the previous block
-                *current |= prev_lost;
-
-                prev_lost = lost;
+                    prev_lost = lost;
+                })
             }
 
             rhs -= to_shift;
@@ -236,7 +252,7 @@ impl<N: Unsigned, R: PrimUInt> Default for BitBoard<N, R> {
         };
 
         BitBoard {
-            ptr: ptr,
+            ptr: Mutex::new(ptr),
             _typenum: PhantomData,
         }
     }
@@ -245,7 +261,7 @@ impl<N: Unsigned, R: PrimUInt> Default for BitBoard<N, R> {
 impl<N: Unsigned, R: PrimUInt> Drop for BitBoard<N, R> {
     fn drop(&mut self) {
         let layout = Self::layout();
-        unsafe { alloc::dealloc(self.ptr as *mut u8, layout) }
+        unsafe { alloc::dealloc(*self.ptr.lock().unwrap() as *mut u8, layout) }
     }
 }
 
@@ -253,7 +269,11 @@ impl<N: Unsigned, R: PrimUInt> Clone for BitBoard<N, R> {
     fn clone(&self) -> Self {
         let result: BitBoard<N, R> = BitBoard::default();
         unsafe {
-            std::ptr::copy(self.ptr as *const R, result.ptr, Self::required_bytes());
+            std::ptr::copy(
+                *self.ptr.lock().unwrap() as *const R,
+                *result.ptr.lock().unwrap(),
+                Self::required_bytes(),
+            );
         }
         result
     }
@@ -312,15 +332,33 @@ impl<N: Unsigned, R: PrimUInt> Debug for BitBoard<N, R> {
         writeln!(f, "Allocated bytes : {}", Self::required_bytes())?;
         writeln!(f, "Allocated bits  : {}", Self::required_bits())?;
         writeln!(f, "Alignment       : {}", Self::alignment())?;
+        unsafe {
+            for i in 0..Self::required_blocks() {
+                self.access_block(i as isize, |block| {
+                    for i in 0..Self::block_size_bits() {
+                        let shift = R::from(1 << i).unwrap();
+                        if *block & shift != R::zero() {
+                            write!(f, "1");
+                        } else {
+                            write!(f, "0");
+                        }
+                    }
+
+                    write!(f, " ");
+                });
+            }
+            writeln!(f);
+        }
+
         // TODO - format the data split into block-sized blocks
         Ok(())
     }
 }
 
 // TODO - this currently renders out with 0,0 at bottom left
-// That seemed sensible, but then shifting left technically
-// which is a bit annoying. I reckon we should abstract away the shifting
-// though so might be fine
+// That seemed sensible, but then shifting left technically moves right
+// which is a bit annoying. We probably want to have a clear standard for
+// left/right and how the board representation fits in
 impl<N: Unsigned, R: PrimUInt> Display for BitBoard<N, R> {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         let s = N::to_usize();
