@@ -8,7 +8,6 @@ use std::fmt::{Binary, Debug, Display, Formatter};
 use std::marker::PhantomData;
 use std::mem;
 use std::ops::{BitAndAssign, BitOrAssign, Shl, ShlAssign, Shr, ShrAssign};
-use std::sync::Mutex;
 use typenum::*;
 
 pub trait PrimUInt:
@@ -70,21 +69,24 @@ pub struct BitBoard<N: Unsigned, R: PrimUInt = u64> {
 impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
     pub fn new(initial: Vec<(usize, usize)>) -> Self {
         let mut result = Self::default();
-        initial.iter().for_each(|(x, y)| result.set(*x, *y));
+        initial.iter().for_each(|(x, y)| {
+            result.set(*x, *y);
+        });
+
         result
     }
 
     pub fn set(&mut self, x: usize, y: usize) {
         if Self::in_bounds(x, y) {
             let (offset, bit_pos) = Self::map_coords(x, y);
-            unsafe { (**self.block_at_mut(offset).lock().unwrap() |= bit_pos) };
+            unsafe { *self.block_at_mut(offset) |= bit_pos };
         }
     }
 
     pub fn unset(&mut self, x: usize, y: usize) {
         if Self::in_bounds(x, y) {
             let (offset, bit_pos) = Self::map_coords(x, y);
-            unsafe { (**self.block_at_mut(offset).lock().unwrap() &= !bit_pos) };
+            unsafe { *self.block_at_mut(offset) &= !bit_pos };
         }
     }
 
@@ -92,17 +94,10 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
     pub fn is_set(&self, x: usize, y: usize) -> bool {
         if Self::in_bounds(x, y) {
             let (offset, bit_pos) = Self::map_coords(x, y);
-            return unsafe { (**self.block_at(offset).lock().unwrap() & bit_pos) != R::zero() };
+            unsafe { self.block_at(offset) & bit_pos != R::zero() }
+        } else {
+            false
         }
-        false
-    }
-
-    unsafe fn block_at(&self, i: isize) -> Mutex<*const R> {
-        Mutex::new(self.ptr.offset(i) as *const R)
-    }
-
-    unsafe fn block_at_mut(&mut self, i: isize) -> Mutex<*mut R> {
-        Mutex::new(self.ptr.offset(i))
     }
 
     fn in_bounds(x: usize, y: usize) -> bool {
@@ -116,6 +111,16 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
 
         // TODO: Unwrap here
         (byte_offset as isize, R::from(bit_pos).unwrap())
+    }
+
+    #[inline(always)]
+    unsafe fn block_at(&self, i: isize) -> R {
+        *self.ptr.offset(i)
+    }
+
+    #[inline(always)]
+    unsafe fn block_at_mut(&mut self, i: isize) -> *mut R {
+        self.ptr.offset(i)
     }
 
     /// Total number of bits on the board
@@ -197,7 +202,7 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
 
             let to_shift = std::cmp::min(Self::block_size_bits() - 1, rhs);
             for i in 0..(Self::required_blocks() as isize) {
-                current = *self.block_at_mut(i).lock().unwrap();
+                current = self.block_at_mut(i);
 
                 // lost bits are either everything in
                 // this block if shift is larger than bit
@@ -312,15 +317,32 @@ impl<N: Unsigned, R: PrimUInt> Debug for BitBoard<N, R> {
         writeln!(f, "Allocated bytes : {}", Self::required_bytes())?;
         writeln!(f, "Allocated bits  : {}", Self::required_bits())?;
         writeln!(f, "Alignment       : {}", Self::alignment())?;
+        unsafe {
+            for i in 0..Self::required_blocks() {
+                let block = self.block_at(i as isize);
+                for i in 0..Self::block_size_bits() {
+                    let shift = R::from(1 << i).unwrap();
+                    if block & shift != R::zero() {
+                        write!(f, "1")?;
+                    } else {
+                        write!(f, "0")?;
+                    }
+                }
+
+                write!(f, " ")?;
+            }
+            writeln!(f)?;
+        }
+
         // TODO - format the data split into block-sized blocks
         Ok(())
     }
 }
 
 // TODO - this currently renders out with 0,0 at bottom left
-// That seemed sensible, but then shifting left technically
-// which is a bit annoying. I reckon we should abstract away the shifting
-// though so might be fine
+// That seemed sensible, but then shifting left technically moves right
+// which is a bit annoying. We probably want to have a clear standard for
+// left/right and how the board representation fits in
 impl<N: Unsigned, R: PrimUInt> Display for BitBoard<N, R> {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         let s = N::to_usize();
@@ -356,11 +378,10 @@ mod tests {
     // Not really a test, just using this for debugging
     // Easiest way to run this is `cargo test -- --nocapture`
     #[test]
-    fn it_works() {
-        let mut t = BitBoard::<U10, u8>::new(vec![(0, 0)]);
+    fn threaded_shift() {
+        let t = BitBoard::<U10, u8>::new(vec![(0, 0)]);
         let shared = Arc::new(Mutex::new(t));
 
-        // Kind of pointless, but just seeing if passing between threads works
         let mut threads = vec![];
         for i in 0..99 {
             let passed = shared.clone();
@@ -371,7 +392,7 @@ mod tests {
         }
 
         for thread in threads {
-            thread.join();
+            thread.join().unwrap();
         }
 
         println!("{}", *shared.lock().unwrap());
