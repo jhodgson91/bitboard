@@ -42,7 +42,6 @@ macro_rules! test_suite {
             #[test]
             fn shl_works() {
                 let mut bb = BitBoard::<$u, $r>::new(vec![(0, 0)]);
-                dbg!(&bb);
                 bb = &bb << ($u::USIZE * $u::USIZE) - 1;
 
                 assert_eq!(bb.is_set($u::USIZE - 1, $u::USIZE - 1), true);
