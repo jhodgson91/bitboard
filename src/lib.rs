@@ -100,9 +100,15 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
         }
     }
 
-    unsafe fn for_each_block_mut(&mut self, mut op: impl FnMut(*mut R)) {
+    // Should implement a DoubleEndedIterator for block iteration
+    unsafe fn for_each_block_mut(&mut self, mut op: impl FnMut(*mut R), reverse: bool) {
         for i in 0..Self::required_blocks() {
-            op(self.block_at_mut(i as isize));
+            let at = if reverse {
+                Self::required_blocks() - i - 1
+            } else {
+                i
+            } as isize;
+            op(self.block_at_mut(at));
         }
     }
 
@@ -175,32 +181,39 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
             ShiftDirection::Right => R::shr,
         };
 
-        let reverse = match direction {
+        let back_shift = match direction {
             ShiftDirection::Left => R::shr,
             ShiftDirection::Right => R::shl,
+        };
+
+        let should_reverse = match direction {
+            ShiftDirection::Left => false,
+            ShiftDirection::Right => true,
         };
 
         while rhs > 0 {
             prev_lost = R::zero();
             let to_shift = std::cmp::min(Self::block_size_bits() - 1, rhs);
+            self.for_each_block_mut(
+                |block| {
+                    // lost bits are either everything in
+                    // this block if shift is larger than bit
+                    // size or the reverse of the shift
+                    lost = if to_shift < Self::block_size_bits() {
+                        back_shift(*block, Self::block_size_bits() - to_shift)
+                    } else {
+                        *block
+                    };
 
-            self.for_each_block_mut(|block| {
-                // lost bits are either everything in
-                // this block if shift is larger than bit
-                // size or the reverse of the shift
-                lost = if to_shift < Self::block_size_bits() {
-                    reverse(*block, Self::block_size_bits() - to_shift)
-                } else {
-                    *block
-                };
+                    *block = shift(*block, to_shift);
 
-                *block = shift(*block, to_shift);
+                    // Set any bits that were lost from the previous block
+                    *block |= prev_lost;
 
-                // Set any bits that were lost from the previous block
-                *block |= prev_lost;
-
-                prev_lost = lost;
-            });
+                    prev_lost = lost;
+                },
+                should_reverse,
+            );
 
             rhs -= to_shift;
         }

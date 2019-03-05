@@ -8,23 +8,14 @@ macro_rules! test_suite {
             #[test]
             fn default_works() {
                 let bb = BitBoard::<$u, $r>::default();
-                for i in 0..$u::USIZE {
-                    for j in 0..$u::USIZE {
-                        assert_eq!(bb.is_set(i, j), false);
-                    }
-                }
+                assert_eq!(false, bb.into_iter().fold(false, |a, b| a || b));
             }
 
             #[test]
             fn new_works() {
                 let initial = (0..$u::USIZE).map(|n| (n, n)).collect();
-
                 let bb = BitBoard::<$u, $r>::new(initial);
-                for i in 0..$u::USIZE {
-                    for j in 0..$u::USIZE {
-                        assert_eq!(bb.is_set(i, j), i == j);
-                    }
-                }
+                assert_eq!(bb.count_ones(), $u::USIZE);
             }
 
             #[test]
@@ -43,8 +34,28 @@ macro_rules! test_suite {
             fn shl_works() {
                 let mut bb = BitBoard::<$u, $r>::new(vec![(0, 0)]);
                 bb = &bb << ($u::USIZE * $u::USIZE) - 1;
-
                 assert_eq!(bb.is_set($u::USIZE - 1, $u::USIZE - 1), true);
+            }
+
+            #[test]
+            fn shlassign_works() {
+                let mut bb = BitBoard::<$u, $r>::new(vec![(0, 0)]);
+                bb <<= ($u::USIZE * $u::USIZE) - 1;
+                assert_eq!(bb.is_set($u::USIZE - 1, $u::USIZE - 1), true);
+            }
+
+            #[test]
+            fn shr_works() {
+                let mut bb = BitBoard::<$u, $r>::new(vec![($u::USIZE - 1, $u::USIZE - 1)]);
+                bb = &bb >> ($u::USIZE * $u::USIZE) - 1;
+                assert_eq!(bb.is_set(0, 0), true);
+            }
+
+            #[test]
+            fn shrassign_works() {
+                let mut bb = BitBoard::<$u, $r>::new(vec![($u::USIZE - 1, $u::USIZE - 1)]);
+                bb >>= ($u::USIZE * $u::USIZE) - 1;
+                assert_eq!(bb.is_set(0, 0), true);
             }
         }
     };
