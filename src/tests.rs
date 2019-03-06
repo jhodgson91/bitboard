@@ -109,3 +109,14 @@ test_suite!(u7_u64, U7, u64);
 test_suite!(u8_u64, U8, u64);
 test_suite!(u20_u64, U20, u64);
 test_suite!(u100_u64, U100, u64);
+
+test_suite!(u2_u128, U2, u128);
+test_suite!(u3_u128, U3, u128);
+test_suite!(u4_u128, U4, u128);
+test_suite!(u5_u128, U5, u128);
+test_suite!(u6_u128, U6, u128);
+test_suite!(u7_u128, U7, u128);
+test_suite!(u8_u128, U8, u128);
+test_suite!(u20_u128, U20, u128);
+test_suite!(u50_u128, U50, u128);
+test_suite!(u100_u128, U100, u128);
