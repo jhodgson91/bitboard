@@ -1,4 +1,5 @@
 use crate::*;
+use typenum::*;
 
 macro_rules! test_suite {
     ($n:ident, $u:ident, $r:ty) => {
@@ -70,6 +71,7 @@ test_suite!(u7_u8, U7, u8);
 test_suite!(u8_u8, U8, u8);
 test_suite!(u20_u8, U20, u8);
 test_suite!(u50_u8, U50, u8);
+test_suite!(u100_u8, U100, u8);
 
 test_suite!(u2_u16, U2, u16);
 test_suite!(u3_u16, U3, u16);
@@ -79,7 +81,7 @@ test_suite!(u6_u16, U6, u16);
 test_suite!(u7_u16, U7, u16);
 test_suite!(u8_u16, U8, u16);
 test_suite!(u20_u16, U20, u16);
-test_suite!(u50_u16, U50, u16);
+test_suite!(u100_u16, U100, u16);
 
 test_suite!(u2_u32, U2, u32);
 test_suite!(u3_u32, U3, u32);
@@ -89,7 +91,7 @@ test_suite!(u6_u32, U6, u32);
 test_suite!(u7_u32, U7, u32);
 test_suite!(u8_u32, U8, u32);
 test_suite!(u20_u32, U20, u32);
-test_suite!(u50_u32, U50, u32);
+test_suite!(u100_u32, U100, u32);
 
 test_suite!(u2_u64, U2, u64);
 test_suite!(u3_u64, U3, u64);
@@ -99,4 +101,4 @@ test_suite!(u6_u64, U6, u64);
 test_suite!(u7_u64, U7, u64);
 test_suite!(u8_u64, U8, u64);
 test_suite!(u20_u64, U20, u64);
-test_suite!(u50_u64, U50, u64);
+test_suite!(u100_u64, U100, u64);
