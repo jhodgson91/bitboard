@@ -60,18 +60,9 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
         };
 
         let op = |to_shift: usize, prev_lost: &mut R, block: *mut R| {
-            // lost bits are either everything in
-            // this block if shift is larger than bit
-            // size or the reverse of the shift
-            let lost = if to_shift < Self::block_size_bits() {
-                back_shift(*block, Self::block_size_bits() - to_shift)
-            } else {
-                *block
-            };
+            let lost = back_shift(*block, Self::block_size_bits() - to_shift);
 
             *block = shift(*block, to_shift);
-
-            // Set any bits that were lost from the previous block
             *block |= *prev_lost;
 
             *prev_lost = lost;

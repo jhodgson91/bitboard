@@ -9,13 +9,16 @@ macro_rules! test_suite {
             #[test]
             fn default_works() {
                 let bb = BitBoard::<$u, $r>::default();
-                assert_eq!(false, bb.into_iter().fold(false, |a, b| a || b));
+                assert_eq!(false, bb.into_iter().any(|b| b));
             }
 
             #[test]
             fn new_works() {
                 let initial = (0..$u::USIZE).map(|n| (n, n)).collect();
                 let bb = BitBoard::<$u, $r>::new(initial);
+                for i in 0..$u::USIZE {
+                    assert_eq!(bb.is_set(i, i), true);
+                }
                 assert_eq!(bb.count_ones(), $u::USIZE);
             }
 
@@ -35,6 +38,7 @@ macro_rules! test_suite {
             fn shl_works() {
                 let mut bb = BitBoard::<$u, $r>::new(vec![(0, 0)]);
                 bb = &bb << ($u::USIZE * $u::USIZE) - 1;
+                assert_eq!(bb.count_ones(), 1);
                 assert_eq!(bb.is_set($u::USIZE - 1, $u::USIZE - 1), true);
             }
 
@@ -42,6 +46,7 @@ macro_rules! test_suite {
             fn shlassign_works() {
                 let mut bb = BitBoard::<$u, $r>::new(vec![(0, 0)]);
                 bb <<= ($u::USIZE * $u::USIZE) - 1;
+                assert_eq!(bb.count_ones(), 1);
                 assert_eq!(bb.is_set($u::USIZE - 1, $u::USIZE - 1), true);
             }
 
@@ -49,6 +54,7 @@ macro_rules! test_suite {
             fn shr_works() {
                 let mut bb = BitBoard::<$u, $r>::new(vec![($u::USIZE - 1, $u::USIZE - 1)]);
                 bb = &bb >> ($u::USIZE * $u::USIZE) - 1;
+                assert_eq!(bb.count_ones(), 1);
                 assert_eq!(bb.is_set(0, 0), true);
             }
 
@@ -56,6 +62,7 @@ macro_rules! test_suite {
             fn shrassign_works() {
                 let mut bb = BitBoard::<$u, $r>::new(vec![($u::USIZE - 1, $u::USIZE - 1)]);
                 bb >>= ($u::USIZE * $u::USIZE) - 1;
+                assert_eq!(bb.count_ones(), 1);
                 assert_eq!(bb.is_set(0, 0), true);
             }
         }
