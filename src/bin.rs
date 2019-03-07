@@ -4,8 +4,7 @@ use bitboard::BitBoard;
 use typenum::*;
 
 fn main() {
-    let mut bb = BitBoard::<U2, u128>::new(vec![(0, 0)]);
-    bb <<= 10;
+    let bb = BitBoard::<U4, u64>::new(vec![(3, 3)]);
     println!("{}", bb);
     dbg!(bb);
 }
