@@ -51,22 +51,22 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
         x < N::to_usize() && y < N::to_usize()
     }
 
-    fn map_coords(x: usize, y: usize) -> (usize, R) {
+    fn map_coords(x: usize, y: usize) -> (isize, R) {
         let pos = x + y * N::to_usize();
-        let byte_offset = pos / Self::block_size_bits();
-        let bit_pos: usize = 1 << (pos % Self::block_size_bits());
+        let byte_offset = pos / Self::alignment_bits();
+        let bit_pos: usize = 1 << (pos % Self::alignment_bits());
 
-        (byte_offset, R::from(bit_pos).unwrap())
+        (byte_offset as isize, R::from(bit_pos).unwrap())
     }
 
     #[inline(always)]
-    pub(super) unsafe fn block_at(&self, i: usize) -> R {
-        *self.ptr.add(i)
+    pub(super) unsafe fn block_at(&self, i: isize) -> R {
+        *self.ptr.offset(i)
     }
 
     #[inline(always)]
-    pub(super) unsafe fn block_at_mut(&mut self, i: usize) -> *mut R {
-        self.ptr.add(i)
+    pub(super) unsafe fn block_at_mut(&mut self, i: isize) -> *mut R {
+        self.ptr.offset(i)
     }
 
     /// Total number of bits on the board
@@ -95,12 +95,12 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
     /// Total number of blocks ( R sized memory chunks ) necessary to reperesent this BitBoard
     #[inline(always)]
     pub(super) fn required_blocks() -> usize {
-        (Self::required_bytes() as f32 / Self::block_size() as f32).ceil() as usize
+        (Self::required_bytes() as f32 / Self::alignment() as f32).ceil() as usize
     }
 
     #[inline(always)]
     pub(super) fn alignment() -> usize {
-        mem::align_of::<u8>()
+        mem::align_of::<R>()
     }
 
     #[inline(always)]
@@ -113,6 +113,7 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
         mem::size_of::<R>()
     }
 
+    // Number of bits in a single block
     #[inline(always)]
     pub(super) fn block_size_bits() -> usize {
         Self::block_size() * 8
