@@ -4,10 +4,18 @@ version = "0.1.0"
 authors = ["jhodgson91 <jhodgson71@gmail.com>"]
 edition = "2018"
 
+[lib]
+name = "bitboard"
+path = "src/lib.rs"
+
 [dependencies]
 num = "0.2.0"
 typenum = "1.10.0"
 criterion = "0.2.10"
+
+[[bin]]
+name = "debug"
+path = "src/bin.rs"
 
 [[bench]]
 name = "bench"

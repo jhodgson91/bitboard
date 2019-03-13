@@ -11,8 +11,8 @@ use typenum::*;
 fn big_shift() {
     let mut bb = BitBoard::<U100, u8>::new(vec![]);
 
-    bb = bb << 100;
-    bb = bb >> 100;
+    bb = &bb << 100;
+    bb = &bb >> 100;
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
