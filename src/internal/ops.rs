@@ -1,8 +1,8 @@
 use super::{BitBoard, PrimUInt};
-use std::ops::{Shl, ShlAssign, Shr, ShrAssign};
+use std::ops::{BitAnd, BitOr, Shl, ShlAssign, Shr, ShrAssign};
 use typenum::*;
 
-enum ShiftDirection {
+pub enum ShiftDirection {
     Left,
     Right,
 }
@@ -44,6 +44,36 @@ impl<N: Unsigned, R: PrimUInt> Shr<usize> for &BitBoard<N, R> {
             result.shift_internal(rhs, ShiftDirection::Right);
         }
         result
+    }
+}
+
+impl<N: Unsigned, R: PrimUInt> BitAnd for &BitBoard<N, R> {
+    type Output = BitBoard<N, R>;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        let mut result = self.clone();
+        unsafe {
+            result
+                .block_iter_mut()
+                .zip(rhs.block_iter())
+                .for_each(|(lblock, rblock)| *lblock &= rblock);
+            result
+        }
+    }
+}
+
+impl<N: Unsigned, R: PrimUInt> BitOr for &BitBoard<N, R> {
+    type Output = BitBoard<N, R>;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        let mut result = self.clone();
+        unsafe {
+            result
+                .block_iter_mut()
+                .zip(rhs.block_iter())
+                .for_each(|(lblock, rblock)| *lblock |= rblock);
+            result
+        }
     }
 }
 
@@ -90,5 +120,28 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
                 *block &= Self::last_block_mask();
             }
         }
+    }
+
+    pub(super) fn dir_mask(dir: ShiftDirection) -> Self {
+        let mut result = Self::default();
+        unsafe {
+            let mut count = 0;
+            result.block_iter_mut().for_each(|block| {
+                (0..Self::block_size_bits())
+                    .into_iter()
+                    .filter(|i| match dir {
+                        ShiftDirection::Right => {
+                            (((Self::block_size_bits()) * count) + i) % N::USIZE == 0
+                        }
+                        ShiftDirection::Left => {
+                            (((Self::block_size_bits()) * count) + i) % N::USIZE == N::USIZE - 1
+                        }
+                    })
+                    .for_each(|i| *block |= R::one() << i);
+                *block = !*block;
+                count += 1;
+            });
+        }
+        result
     }
 }

@@ -33,6 +33,7 @@ impl PrimUInt for u32 {}
 mod board;
 mod iter;
 mod ops;
+mod statics;
 
 pub use board::BitBoard;
 pub use iter::BitBoardIter;
