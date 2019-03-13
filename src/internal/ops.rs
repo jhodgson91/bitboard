@@ -84,5 +84,11 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
 
             rhs -= to_shift;
         }
+
+        if Self::last_block_mask() != R::zero() {
+            if let Some(block) = self.block_iter_mut().last() {
+                *block &= Self::last_block_mask();
+            }
+        }
     }
 }

@@ -7,6 +7,15 @@
   - Can intersect/union which collapses to a single bitboard ( multi-threaded? )
   - Can shift all bitboards in the stack at once ( multi-threaded? )
 
+
+- Performance
+  - Could we make shift functions avoid clones? Maybe we create specialized versions that copy the data pre-shift to the stack, and apply it after? i.e
+    - For each block
+      - Copy block to temp
+      - Perform shift in-place
+      - block |= temp
+    - This would avoid needing to clone for every shift. Maybe we do this with a function that takes a list of shifts you want to do?
+
 ## TODOs
 
 - Tests!!

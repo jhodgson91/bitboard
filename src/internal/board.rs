@@ -120,6 +120,15 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
     }
 
     #[inline(always)]
+    pub(super) fn last_block_mask() -> R {
+        let remainder = Self::board_size() % Self::block_size_bits();
+        match remainder {
+            0 => R::zero(),
+            _ => (R::one() + R::one()).pow(remainder as u32) - R::one(),
+        }
+    }
+
+    #[inline(always)]
     pub(super) fn layout() -> Layout {
         Layout::from_size_align(Self::required_bytes(), Self::alignment()).unwrap()
     }
@@ -175,6 +184,7 @@ impl<N: Unsigned, R: PrimUInt> Debug for BitBoard<N, R> {
         writeln!(f, "Allocated bytes : {}", Self::required_bytes())?;
         writeln!(f, "Allocated bits  : {}", Self::required_bits())?;
         writeln!(f, "Alignment       : {}", Self::alignment())?;
+        writeln!(f, "Last Block Mask : {:b}", Self::last_block_mask())?;
         writeln!(f, "Data            : {:?}", self.ptr)?;
         unsafe {
             self.block_iter().rev().for_each(|block| {
