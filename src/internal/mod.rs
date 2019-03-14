@@ -37,3 +37,4 @@ mod statics;
 
 pub use board::BitBoard;
 pub use iter::BitBoardIter;
+pub use ops::ShiftDirection;

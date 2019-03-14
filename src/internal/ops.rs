@@ -122,25 +122,32 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
         }
     }
 
-    pub(super) fn dir_mask(dir: ShiftDirection) -> Self {
+    pub fn dir_mask(dir: ShiftDirection, mut width: usize) -> Self {
+        // Clamp the dir_mask below N::USIZE - 1
+        width = std::cmp::min(N::USIZE - 1, width);
+
+        // TODO - allocation here is unnecessary and expensive,
+        // this chunk of logic should be done
+        // block-by-block during shift_internal
         let mut result = Self::default();
         unsafe {
-            let mut count = 0;
-            result.block_iter_mut().for_each(|block| {
+            for (count, block) in result.block_iter_mut().enumerate() {
+                // This filters out bits in this block
+                // that aren't width away from left or right
                 (0..Self::block_size_bits())
                     .into_iter()
                     .filter(|i| match dir {
                         ShiftDirection::Right => {
-                            (((Self::block_size_bits()) * count) + i) % N::USIZE == 0
+                            (((Self::block_size_bits()) * count) + i) % N::USIZE < width
                         }
                         ShiftDirection::Left => {
-                            (((Self::block_size_bits()) * count) + i) % N::USIZE == N::USIZE - 1
+                            N::USIZE - ((((Self::block_size_bits()) * count) + i) % N::USIZE) - 1
+                                < width
                         }
                     })
                     .for_each(|i| *block |= R::one() << i);
                 *block = !*block;
-                count += 1;
-            });
+            }
         }
         result
     }
