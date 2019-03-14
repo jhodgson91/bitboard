@@ -32,6 +32,7 @@ impl PrimUInt for u32 {}
 
 mod board;
 mod iter;
+mod movement;
 mod ops;
 mod statics;
 

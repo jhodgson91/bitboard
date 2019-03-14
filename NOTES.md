@@ -16,6 +16,31 @@
       - block |= temp
     - This would avoid needing to clone for every shift. Maybe we do this with a function that takes a list of shifts you want to do?
 
+- Movement
+  - Create functional programmy movement api, could look something like this in the end:
+
+```
+let mut bb = BitBoard<U8>::default();
+let queen_moves = bb.moves()
+            .left(1).repeat(8)
+            .right(1).repeat(8)
+            .up(1).repeat(8)
+            .down(1).repeat(8)
+            .collect();
+
+let knight_moves = bb.move()
+                  .up(1).left(2)
+                  .up(1).right(2)
+                  .up(2).left(1)
+                  .up(2).right(1)
+                  .mirror().collect();
+```
+  
+  - `left/right/up/down(n)` - 
+  - `repeat(n)` - repeats the last move n times
+  - `mirror()` - does the opposite of all preceding moves and appends
+  - `collect()` - returns a bitboard of all the moves applied to the original bitboard - non-destructively
+
 ## TODOs
 
 - Tests!!
