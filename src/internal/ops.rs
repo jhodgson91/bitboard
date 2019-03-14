@@ -108,12 +108,33 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
             *prev_lost = lost;
         };
 
-        let remainder = rhs % N::USIZE;
-        if rhs > remainder {
-            rhs -= remainder;
-        }
+        // NB: Left shift == sends bits right and up the board ( right now )
+
+        // Up/Down is easy, it will be an exact multiple of N and there's no ambiguity
+
+        // Left/Right depends on the distance away from the nearest N
+        // If a user requested a left shift of 7 on an 8x8 board, we can assume
+        // they were going up 1, left 1. This breaks down at the boundary though.
+        // If a user left shifts 4, they might be trying to go right 4,
+        // or up 1 left 4.
+
+        // There's an argument to be made that right 4 is a, in this case,
+        // more sensible move, but it would be nice if we could be generic.
+        // I also don't think that's the only case. Some are more grey areas
+
+        // What I'd like is a nice front-facing API to that is as easy to use
+        // as shifting, but doesn't have these edge-cases, maybe something
+        // functional programmingy...
+
+        // This was my attempt at getting edge masking working for the general case,
+        // It's not finished, and doesn't try to predict left/right as I realised the problem
+        // while coding it...
+
+        let mut remainder = rhs % N::USIZE;
+        rhs -= remainder;
+
         // Move up/down first
-        while rhs > 0 {
+        while rhs > remainder {
             let mut prev_lost = R::zero();
 
             let to_shift = std::cmp::min(Self::block_size_bits() - 1, rhs);
@@ -121,18 +142,25 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
                 do_shift(to_shift, &mut prev_lost, block);
             });
 
-            rhs -= to_shift;
+            rhs = std::cmp::max(remainder, rhs - to_shift);
         }
 
         // Anything left here should count as a left/right move,
         // so we mask out all the dirty cheat moves
-        if remainder > 0 {
+        while remainder > 0 {
             let mut prev_lost = R::zero();
 
+            let to_shift = std::cmp::min(Self::block_size_bits() - 1, remainder);
             self.enumerate_blocks(direction, |idx, block| {
-                do_shift(remainder, &mut prev_lost, block);
+                do_shift(to_shift, &mut prev_lost, block);
+                println!(
+                    "{:064b}",
+                    Self::edge_mask(direction.other(), remainder, idx)
+                );
                 *block &= Self::edge_mask(direction.other(), remainder, idx);
             });
+
+            remainder -= to_shift;
         }
 
         if Self::last_block_mask() != R::zero() {
@@ -158,9 +186,9 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
     }
 
     pub(super) fn edge_mask(dir: Direction, mut width: usize, block_idx: usize) -> R {
-        // Clamp the dir_mask below N::USIZE - 1
         width = std::cmp::min(N::USIZE - 1, width);
 
+        println!("Edge width {}", width);
         !(0..Self::block_size_bits())
             .into_iter()
             .filter(|i| match dir {
