@@ -32,10 +32,10 @@ impl PrimUInt for u32 {}
 
 mod board;
 mod iter;
-mod movement;
+mod moves;
 mod ops;
 mod statics;
 
 pub use board::BitBoard;
 pub use iter::BitBoardIter;
-pub use ops::Direction;
+pub use moves::*;
