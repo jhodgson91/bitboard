@@ -1,5 +1,5 @@
 use super::{BitBoard, Move, PrimUInt};
-use std::ops::{BitAnd, BitOr, Shl, ShlAssign, Shr, ShrAssign};
+use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign};
 use typenum::*;
 
 impl<N: Unsigned, R: PrimUInt> BitAnd for &BitBoard<N, R> {
@@ -16,6 +16,15 @@ impl<N: Unsigned, R: PrimUInt> BitAnd for &BitBoard<N, R> {
         }
     }
 }
+impl<N: Unsigned, R: PrimUInt> BitAndAssign<&Self> for BitBoard<N, R> {
+    fn bitand_assign(&mut self, rhs: &Self) {
+        unsafe {
+            self.block_iter_mut()
+                .zip(rhs.block_iter())
+                .for_each(|(lblock, rblock)| *lblock &= rblock);
+        }
+    }
+}
 
 impl<N: Unsigned, R: PrimUInt> BitOr for &BitBoard<N, R> {
     type Output = BitBoard<N, R>;
@@ -28,6 +37,16 @@ impl<N: Unsigned, R: PrimUInt> BitOr for &BitBoard<N, R> {
                 .zip(rhs.block_iter())
                 .for_each(|(lblock, rblock)| *lblock |= rblock);
             result
+        }
+    }
+}
+
+impl<N: Unsigned, R: PrimUInt> BitOrAssign<&Self> for BitBoard<N, R> {
+    fn bitor_assign(&mut self, rhs: &Self) {
+        unsafe {
+            self.block_iter_mut()
+                .zip(rhs.block_iter())
+                .for_each(|(lblock, rblock)| *lblock |= rblock);
         }
     }
 }
@@ -62,41 +81,25 @@ impl Shift {
 }
 
 impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
-    pub(super) fn shift(&mut self, m: Move, preserve: bool) {
+    pub(super) fn shift(&mut self, m: Move) {
         unsafe {
             match m {
-                Move::Left(i) => self.shift_internal(i, Shift::Right, preserve, i),
-                Move::Right(i) => self.shift_internal(i, Shift::Left, preserve, i),
-                Move::Up(i) => self.shift_internal(i * N::USIZE, Shift::Left, preserve, 0),
-                Move::Down(i) => self.shift_internal(i * N::USIZE, Shift::Right, preserve, 0),
+                Move::Left(i) => self.shift_internal(i, Shift::Right, i),
+                Move::Right(i) => self.shift_internal(i, Shift::Left, i),
+                Move::Up(i) => self.shift_internal(i * N::USIZE, Shift::Left, 0),
+                Move::Down(i) => self.shift_internal(i * N::USIZE, Shift::Right, 0),
             }
         }
     }
 
-    unsafe fn shift_internal(
-        &mut self,
-        mut rhs: usize,
-        dir: Shift,
-        shift_or: bool,
-        edge_mask_width: usize,
-    ) {
+    unsafe fn shift_internal(&mut self, mut rhs: usize, dir: Shift, edge_mask_width: usize) {
         while rhs > 0 {
             let mut prev_lost = R::zero();
 
             let to_shift = std::cmp::min(Self::block_size_bits(), rhs);
             self.enumerate_blocks(dir, |idx, block| {
                 let edge_mask = Self::edge_mask(dir.other(), edge_mask_width, idx);
-
-                if shift_or {
-                    // PROBLEM!!!
-                    // Currently if a user has requested a move that requires shifting across blocks
-                    // the blocks will incorrectly propogate because of this shift or.
-                    let before = *block;
-                    prev_lost = Self::shift_block(dir, to_shift, prev_lost, block, edge_mask);
-                    *block |= before;
-                } else {
-                    prev_lost = Self::shift_block(dir, to_shift, prev_lost, block, edge_mask);
-                }
+                prev_lost = Self::shift_block(dir, to_shift, prev_lost, block, edge_mask);
             });
 
             rhs -= to_shift;

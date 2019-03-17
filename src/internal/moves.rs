@@ -8,6 +8,7 @@ pub enum Move {
     Down(usize),
 }
 
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub enum Direction {
     Anticlockwise,
     Clockwise,
@@ -63,7 +64,8 @@ impl<N: Unsigned, R: PrimUInt> Movable for &BitBoard<N, R> {
     fn combine_moves(self, moves: Vec<Move>) -> Self::Output {
         let mut result = self.clone();
         for m in moves {
-            result.shift(m, true);
+            result.shift(m);
+            result |= self;
         }
         result
     }
@@ -71,7 +73,7 @@ impl<N: Unsigned, R: PrimUInt> Movable for &BitBoard<N, R> {
     fn run_moves(self, moves: Vec<Move>) -> Self::Output {
         let mut result = self.clone();
         for m in moves {
-            result.shift(m, false);
+            result.shift(m);
         }
         result
     }
@@ -122,9 +124,8 @@ impl<T: Movable> MoveGenerator<T> {
     }
 
     pub fn rotate(mut self, dir: Direction) -> Self {
-        if let Some(m) = self.moves.pop() {
-            self.moves.push(m.rotate(dir));
-        }
+        self.moves
+            .append(&mut self.moves.iter().map(|m| m.rotate(dir)).collect());
         self
     }
 
