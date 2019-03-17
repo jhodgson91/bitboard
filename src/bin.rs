@@ -4,9 +4,8 @@ use bitboard::*;
 use typenum::*;
 
 fn main() {
-    let mut bb = BitBoard::<U4, u8>::new(vec![(0, 0)]);
-    dbg!(&bb);
+    let mut bb = BitBoard::<U5, u8>::new(vec![(0, 0)]);
     println!("{}", bb);
-    bb <<= 8;
-    println!("{}", bb);
+    let test = bb.moves().up(2).repeat(2).collect();
+    println!("{}", test);
 }

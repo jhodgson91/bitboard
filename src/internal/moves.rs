@@ -47,7 +47,8 @@ where
 {
     type Output;
 
-    fn apply_moves(self, moves: Vec<Move>) -> Self::Output;
+    fn run_moves(self, moves: Vec<Move>) -> Self::Output;
+    fn combine_moves(self, moves: Vec<Move>) -> Self::Output;
 
     fn moves(self) -> MoveGenerator<Self> {
         MoveGenerator {
@@ -59,20 +60,36 @@ where
 impl<N: Unsigned, R: PrimUInt> Movable for &BitBoard<N, R> {
     type Output = BitBoard<N, R>;
 
-    fn apply_moves(self, moves: Vec<Move>) -> Self::Output {
-        BitBoard::<N, R>::default()
+    fn combine_moves(self, moves: Vec<Move>) -> Self::Output {
+        let mut result = self.clone();
+        for m in moves {
+            result.shift(m, true);
+        }
+        result
+    }
+
+    fn run_moves(self, moves: Vec<Move>) -> Self::Output {
+        let mut result = self.clone();
+        for m in moves {
+            result.shift(m, false);
+        }
+        result
     }
 }
 
-pub struct MoveGenerator<T: Movable> {
+pub struct MoveGenerator<T> {
     to_move: T,
     moves: Vec<Move>,
 }
 
 use Move::*;
 impl<T: Movable> MoveGenerator<T> {
+    pub fn run(self) -> T::Output {
+        self.to_move.run_moves(self.moves)
+    }
+
     pub fn collect(self) -> T::Output {
-        self.to_move.apply_moves(self.moves)
+        self.to_move.combine_moves(self.moves)
     }
 
     pub fn left(mut self, n: usize) -> Self {
@@ -95,10 +112,18 @@ impl<T: Movable> MoveGenerator<T> {
         self
     }
 
+    pub fn repeat(mut self, n: usize) -> Self {
+        if let Some(m) = self.moves.pop() {
+            for _i in 0..n {
+                self.moves.push(m);
+            }
+        }
+        self
+    }
+
     pub fn rotate(mut self, dir: Direction) -> Self {
-        match self.moves.last() {
-            Some(m) => self.moves.push(m.rotate(dir)),
-            None => (),
+        if let Some(m) = self.moves.pop() {
+            self.moves.push(m.rotate(dir));
         }
         self
     }
