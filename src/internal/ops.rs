@@ -88,6 +88,7 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
                 Move::Right(i) => self.shift_internal(i, Shift::Left, i),
                 Move::Up(i) => self.shift_internal(i * N::USIZE, Shift::Left, 0),
                 Move::Down(i) => self.shift_internal(i * N::USIZE, Shift::Right, 0),
+                Move::Mix(v) => v.iter().for_each(|m| self.shift(m.clone())),
             }
         }
     }

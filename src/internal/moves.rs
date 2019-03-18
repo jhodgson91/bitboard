@@ -1,11 +1,12 @@
 use super::*;
 
-#[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub enum Move {
     Left(usize),
     Right(usize),
     Up(usize),
     Down(usize),
+    Mix(Vec<Move>),
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -22,12 +23,14 @@ impl Move {
                 Up(i) => Right(i),
                 Right(i) => Down(i),
                 Down(i) => Left(i),
+                Mix(v) => Mix(v.iter().map(|m| m.clone().rotate(dir)).collect()),
             },
             Direction::Anticlockwise => match self {
                 Left(i) => Down(i),
                 Down(i) => Right(i),
                 Right(i) => Up(i),
                 Up(i) => Left(i),
+                Mix(v) => Mix(v.iter().map(|m| m.clone().rotate(dir)).collect()),
             },
         }
     }
@@ -38,6 +41,7 @@ impl Move {
             Down(i) => Up(i),
             Left(i) => Right(i),
             Right(i) => Left(i),
+            Mix(v) => Mix(v.iter().map(|m| m.clone().mirror()).collect()),
         }
     }
 }
@@ -58,6 +62,7 @@ where
         }
     }
 }
+
 impl<N: Unsigned, R: PrimUInt> Movable for &BitBoard<N, R> {
     type Output = BitBoard<N, R>;
 
@@ -114,10 +119,15 @@ impl<T: Movable> MoveGenerator<T> {
         self
     }
 
+    pub fn combine(mut self) -> Self {
+        self.moves = vec![Mix(self.moves.clone())];
+        self
+    }
+
     pub fn repeat(mut self, n: usize) -> Self {
         if let Some(m) = self.moves.pop() {
             for _i in 0..n {
-                self.moves.push(m);
+                self.moves.push(m.clone());
             }
         }
         self
@@ -125,13 +135,13 @@ impl<T: Movable> MoveGenerator<T> {
 
     pub fn rotate(mut self, dir: Direction) -> Self {
         self.moves
-            .append(&mut self.moves.iter().map(|m| m.rotate(dir)).collect());
+            .append(&mut self.moves.iter().map(|m| m.clone().rotate(dir)).collect());
         self
     }
 
     pub fn mirror(mut self) -> Self {
         self.moves
-            .append(&mut self.moves.iter().map(|m| m.mirror()).collect());
+            .append(&mut self.moves.iter().map(|m| m.clone().mirror()).collect());
         self
     }
 }
