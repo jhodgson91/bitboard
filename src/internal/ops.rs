@@ -149,21 +149,20 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
         }
     }
 
-    unsafe fn shift_internal(&mut self, mut rhs: usize, dir: Shift, edge_mask_width: usize) {
+    unsafe fn shift_internal(&mut self, mut rhs: usize, direction: Shift, edge_mask_width: usize) {
         let edge_masks: Vec<R> = (0..Self::REQUIRED_BLOCKS)
             .into_iter()
-            .map(|i| Self::edge_mask(dir.other(), edge_mask_width, i))
+            .map(|i| Self::edge_mask(direction.other(), edge_mask_width, i))
             .collect();
 
         while rhs > 0 {
             let mut prev_lost = R::zero();
 
-            let to_shift = std::cmp::min(Self::BLOCK_SIZE_BITS, rhs);
-            self.enumerate_blocks(dir, |idx, block| {
-                prev_lost = Self::shift_block(dir, to_shift, prev_lost, block, edge_masks[idx]);
+            self.enumerate_blocks(direction, |idx, block| {
+                prev_lost = Self::shift_block(direction, rhs, prev_lost, block, edge_masks[idx]);
             });
 
-            rhs -= to_shift;
+            rhs -= std::cmp::min(Self::BLOCK_SIZE_BITS, rhs);
         }
 
         if Self::last_block_mask() != R::zero() {
