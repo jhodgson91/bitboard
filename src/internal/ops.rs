@@ -1,6 +1,62 @@
 use super::{BitBoard, Move, PrimUInt};
-use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign};
+use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Shl, ShlAssign, Shr, ShrAssign};
 use typenum::*;
+
+impl<N: Unsigned, R: PrimUInt> Shl<Move> for &BitBoard<N, R> {
+    type Output = BitBoard<N, R>;
+
+    fn shl(self, rhs: Move) -> Self::Output {
+        let mut result = self.clone();
+        result.shift(rhs);
+        result
+    }
+}
+
+impl<N: Unsigned, R: PrimUInt> ShlAssign<Move> for BitBoard<N, R> {
+    fn shl_assign(&mut self, rhs: Move) {
+        self.shift(rhs);
+    }
+}
+
+impl<N: Unsigned, R: PrimUInt> ShlAssign<usize> for BitBoard<N, R> {
+    fn shl_assign(&mut self, rhs: usize) {
+        unsafe {
+            self.shift_internal(rhs, Shift::Left, 0);
+        }
+    }
+}
+
+impl<N: Unsigned, R: PrimUInt> ShrAssign<usize> for BitBoard<N, R> {
+    fn shr_assign(&mut self, rhs: usize) {
+        unsafe {
+            self.shift_internal(rhs, Shift::Right, 0);
+        }
+    }
+}
+
+impl<N: Unsigned, R: PrimUInt> Shl<usize> for &BitBoard<N, R> {
+    type Output = BitBoard<N, R>;
+
+    fn shl(self, rhs: usize) -> Self::Output {
+        let mut result = self.clone();
+        unsafe {
+            result.shift_internal(rhs, Shift::Left, 0);
+        }
+        result
+    }
+}
+
+impl<N: Unsigned, R: PrimUInt> Shr<usize> for &BitBoard<N, R> {
+    type Output = BitBoard<N, R>;
+
+    fn shr(self, rhs: usize) -> Self::Output {
+        let mut result = self.clone();
+        unsafe {
+            result.shift_internal(rhs, Shift::Right, 0);
+        }
+        result
+    }
+}
 
 impl<N: Unsigned, R: PrimUInt> BitAnd for &BitBoard<N, R> {
     type Output = BitBoard<N, R>;
@@ -58,21 +114,21 @@ pub(crate) enum Shift {
 }
 
 impl Shift {
-    pub(super) fn other(&self) -> Self {
+    pub(self) fn other(&self) -> Self {
         match self {
             Shift::Left => Shift::Right,
             Shift::Right => Shift::Left,
         }
     }
 
-    pub(super) fn shift<R: PrimUInt>(&self, other: R, n: usize) -> R {
+    pub(self) fn shift<R: PrimUInt>(&self, other: R, n: usize) -> R {
         match self {
             Shift::Left => other << n,
             Shift::Right => other >> n,
         }
     }
 
-    pub(super) fn back_shift<R: PrimUInt>(&self, other: R, n: usize) -> R {
+    pub(self) fn back_shift<R: PrimUInt>(&self, other: R, n: usize) -> R {
         match self {
             Shift::Left => other >> n,
             Shift::Right => other << n,
@@ -94,13 +150,17 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
     }
 
     unsafe fn shift_internal(&mut self, mut rhs: usize, dir: Shift, edge_mask_width: usize) {
+        let edge_masks: Vec<R> = (0..Self::REQUIRED_BLOCKS)
+            .into_iter()
+            .map(|i| Self::edge_mask(dir.other(), edge_mask_width, i))
+            .collect();
+
         while rhs > 0 {
             let mut prev_lost = R::zero();
 
-            let to_shift = std::cmp::min(Self::block_size_bits(), rhs);
+            let to_shift = std::cmp::min(Self::BLOCK_SIZE_BITS, rhs);
             self.enumerate_blocks(dir, |idx, block| {
-                let edge_mask = Self::edge_mask(dir.other(), edge_mask_width, idx);
-                prev_lost = Self::shift_block(dir, to_shift, prev_lost, block, edge_mask);
+                prev_lost = Self::shift_block(dir, to_shift, prev_lost, block, edge_masks[idx]);
             });
 
             rhs -= to_shift;
@@ -123,7 +183,7 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
             }
             Shift::Right => {
                 for (i, block) in self.block_iter_mut().rev().enumerate() {
-                    op(Self::required_blocks() - i - 1, block);
+                    op(Self::REQUIRED_BLOCKS - i - 1, block);
                 }
             }
         }
@@ -131,12 +191,12 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
 
     // Performs a shift on a single block, returning the bits that would be lost
     unsafe fn shift_block(dir: Shift, by: usize, prev_lost: R, block: *mut R, mask: R) -> R {
-        if by >= Self::block_size_bits() {
+        if by >= Self::BLOCK_SIZE_BITS {
             let lost = *block;
             *block = prev_lost;
             lost
         } else {
-            let lost = dir.back_shift(*block, Self::block_size_bits() - by);
+            let lost = dir.back_shift(*block, Self::BLOCK_SIZE_BITS - by);
             *block = dir.shift(*block, by);
             *block |= prev_lost;
             *block &= mask;
@@ -150,14 +210,12 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
         if width >= N::USIZE {
             R::zero()
         } else {
-            !(0..Self::block_size_bits())
+            !(0..Self::BLOCK_SIZE_BITS)
                 .into_iter()
                 .filter(|i| match dir {
-                    Shift::Right => {
-                        (((Self::block_size_bits()) * block_idx) + i) % N::USIZE < width
-                    }
+                    Shift::Right => (((Self::BLOCK_SIZE_BITS) * block_idx) + i) % N::USIZE < width,
                     Shift::Left => {
-                        N::USIZE - ((((Self::block_size_bits()) * block_idx) + i) % N::USIZE) - 1
+                        N::USIZE - ((((Self::BLOCK_SIZE_BITS) * block_idx) + i) % N::USIZE) - 1
                             < width
                     }
                 })

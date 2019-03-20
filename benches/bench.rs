@@ -9,7 +9,9 @@ use bitboard::*;
 use typenum::*;
 
 type RealLife = BitBoard<U8, u64>;
-type WorstCase = BitBoard<U100, u8>;
+type WorstCase = BitBoard<U500, u8>;
+
+const SIZE: usize = 500;
 
 fn worst_case() {
     let mut bb = WorstCase::default();
@@ -23,8 +25,6 @@ fn worst_case() {
 
 fn real_life() {
     let mut bb = RealLife::default();
-
-    bb = &bb << 8;
 }
 
 fn criterion_benchmark(c: &mut Criterion) {

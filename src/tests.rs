@@ -1,6 +1,6 @@
 use crate::*;
 use typenum::*;
-/*
+
 macro_rules! test_suite {
     ($n:ident, $u:ident, $r:ty) => {
         mod $n {
@@ -121,4 +121,3 @@ test_suite!(u7_u64, U7, u64);
 test_suite!(u8_u64, U8, u64);
 test_suite!(u20_u64, U20, u64);
 test_suite!(u100_u64, U100, u64);
-*/

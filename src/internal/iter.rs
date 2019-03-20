@@ -106,13 +106,13 @@ impl<R: PrimUInt> DoubleEndedIterator for BlockIterMut<R> {
 impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
     pub(super) unsafe fn block_iter(&self) -> BlockIter<R> {
         let start = self.ptr as *const R;
-        let end = self.ptr.add(Self::required_blocks()) as *const R;
+        let end = self.ptr.add(Self::REQUIRED_BLOCKS) as *const R;
         BlockIter { start, end }
     }
 
     pub(super) unsafe fn block_iter_mut(&mut self) -> BlockIterMut<R> {
         let start = self.ptr;
-        let end = self.ptr.add(Self::required_blocks());
+        let end = self.ptr.add(Self::REQUIRED_BLOCKS);
         BlockIterMut { start, end }
     }
 }
