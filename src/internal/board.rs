@@ -53,9 +53,9 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
     fn map_coords(x: usize, y: usize) -> (isize, R) {
         let pos = x + y * N::USIZE;
         let byte_offset = pos / Self::ALIGNMENT_BITS;
-        let bit_pos: usize = 1 << (pos % Self::ALIGNMENT_BITS);
+        let bit_pos: R = R::one() << (pos % Self::ALIGNMENT_BITS);
 
-        (byte_offset as isize, R::from(bit_pos).unwrap())
+        (byte_offset as isize, bit_pos)
     }
 
     #[inline(always)]
