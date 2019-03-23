@@ -46,14 +46,12 @@ let knight_moves = bb.move()
 - Tests!!
 - Benchmarks
 - Clear up the boards' orientation - would be nice ( but not overly necessary ) if left shifts actually moved left
-- Generate a last_block_mask ( should be possible to do this statically )
-- Generate a left/right board mask ( this will have to be dynamic I think, unless there's some sweet maths I don't know about )
-- Double check we can't do a tuple at line 156, two matches suck
-- Consider creating move_up/left/right functions instead of direct shifts...
-- Consider the trade-offs for heap vs stack allocated bit-boards. Not too late to limit the size to 8x8 and just have a u64
+- Consider the trade-offs for heap vs stack allocated bit-boards. Not too late to limit the size to 8x8 and just have a u64 
+  - When rust gets [const generics](https://github.com/rust-lang/rust/issues/44580), we can get the best of both worlds. Apparently they're aiming for that this year.
 - Error handling
   -  is_set should return a Result
   -  map_coords should return a Result/Option
--  Internal threading
+-  Internal threading 
+   -  WASM actually doesn't support threading yet, but maybe we turn threading on for non WASM builds?
    -  Do we want threaded shifts for bitboards with lots of blocks?
 
