@@ -1,5 +1,5 @@
 use super::{BitBoard, Move, PrimUInt};
-use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Shl, ShlAssign, Shr, ShrAssign};
+use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Shl, ShlAssign};
 use typenum::*;
 
 impl<N: Unsigned, R: PrimUInt> Shl<Move> for &BitBoard<N, R> {
@@ -15,46 +15,6 @@ impl<N: Unsigned, R: PrimUInt> Shl<Move> for &BitBoard<N, R> {
 impl<N: Unsigned, R: PrimUInt> ShlAssign<Move> for BitBoard<N, R> {
     fn shl_assign(&mut self, rhs: Move) {
         self.shift(rhs);
-    }
-}
-
-impl<N: Unsigned, R: PrimUInt> ShlAssign<usize> for BitBoard<N, R> {
-    fn shl_assign(&mut self, rhs: usize) {
-        unsafe {
-            self.shift_internal(rhs, Shift::Left, 0);
-        }
-    }
-}
-
-impl<N: Unsigned, R: PrimUInt> ShrAssign<usize> for BitBoard<N, R> {
-    fn shr_assign(&mut self, rhs: usize) {
-        unsafe {
-            self.shift_internal(rhs, Shift::Right, 0);
-        }
-    }
-}
-
-impl<N: Unsigned, R: PrimUInt> Shl<usize> for &BitBoard<N, R> {
-    type Output = BitBoard<N, R>;
-
-    fn shl(self, rhs: usize) -> Self::Output {
-        let mut result = self.clone();
-        unsafe {
-            result.shift_internal(rhs, Shift::Left, 0);
-        }
-        result
-    }
-}
-
-impl<N: Unsigned, R: PrimUInt> Shr<usize> for &BitBoard<N, R> {
-    type Output = BitBoard<N, R>;
-
-    fn shr(self, rhs: usize) -> Self::Output {
-        let mut result = self.clone();
-        unsafe {
-            result.shift_internal(rhs, Shift::Right, 0);
-        }
-        result
     }
 }
 
@@ -114,13 +74,6 @@ pub(crate) enum Shift {
 }
 
 impl Shift {
-    pub(self) fn other(&self) -> Self {
-        match self {
-            Shift::Left => Shift::Right,
-            Shift::Right => Shift::Left,
-        }
-    }
-
     pub(self) fn shift<R: PrimUInt>(&self, other: R, n: usize) -> R {
         match self {
             Shift::Left => other << n,
@@ -152,7 +105,7 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
     unsafe fn shift_internal(&mut self, mut rhs: usize, direction: Shift, edge_mask_width: usize) {
         let edge_masks: Vec<R> = (0..Self::REQUIRED_BLOCKS)
             .into_iter()
-            .map(|i| Self::edge_mask(direction.other(), edge_mask_width, i))
+            .map(|i| Self::edge_mask(direction, edge_mask_width, i))
             .collect();
 
         while rhs > 0 {
@@ -193,6 +146,9 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
         if by >= Self::BLOCK_SIZE_BITS {
             let lost = *block;
             *block = prev_lost;
+            if by == Self::BLOCK_SIZE_BITS {
+                *block &= mask;
+            }
             lost
         } else {
             let lost = dir.back_shift(*block, Self::BLOCK_SIZE_BITS - by);
@@ -205,6 +161,8 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
 
     // Returns the edge mask for a single block based on
     // shift direction. Only used in left/right shifts
+    // Remember moving left means shifting right, ie Shift::Left
+    // will give you the right edge mask
     fn edge_mask(dir: Shift, width: usize, block_idx: usize) -> R {
         if width >= N::USIZE {
             R::zero()
@@ -212,8 +170,8 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
             !(0..Self::BLOCK_SIZE_BITS)
                 .into_iter()
                 .filter(|i| match dir {
-                    Shift::Right => (((Self::BLOCK_SIZE_BITS) * block_idx) + i) % N::USIZE < width,
-                    Shift::Left => {
+                    Shift::Left => (((Self::BLOCK_SIZE_BITS) * block_idx) + i) % N::USIZE < width,
+                    Shift::Right => {
                         N::USIZE - ((((Self::BLOCK_SIZE_BITS) * block_idx) + i) % N::USIZE) - 1
                             < width
                     }

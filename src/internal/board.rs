@@ -43,7 +43,7 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
     }
 
     pub fn count_ones(&self) -> usize {
-        self.into_iter().map(|b| if b { 1 } else { 0 }).sum()
+        unsafe { self.block_iter().map(|b| b.count_ones() as usize).sum() }
     }
 
     fn in_bounds(x: usize, y: usize) -> bool {
