@@ -1,6 +1,19 @@
-use super::{BitBoard, Move, PrimUInt};
-use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Shl, ShlAssign};
+use super::{BitBoard, PrimUInt};
+use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Shl, ShlAssign};
 use typenum::*;
+
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub enum Move {
+    Left(usize),
+    Right(usize),
+    Up(usize),
+    Down(usize),
+
+    UpLeft(usize),
+    UpRight(usize),
+    DownLeft(usize),
+    DownRight(usize),
+}
 
 impl<N: Unsigned, R: PrimUInt> Shl<Move> for &BitBoard<N, R> {
     type Output = BitBoard<N, R>;
@@ -57,6 +70,19 @@ impl<N: Unsigned, R: PrimUInt> BitOr for &BitBoard<N, R> {
     }
 }
 
+impl<N: Unsigned, R: PrimUInt> BitOr for BitBoard<N, R> {
+    type Output = BitBoard<N, R>;
+
+    fn bitor(mut self, rhs: Self) -> Self::Output {
+        unsafe {
+            self.block_iter_mut()
+                .zip(rhs.block_iter())
+                .for_each(|(lblock, rblock)| *lblock |= rblock);
+            self
+        }
+    }
+}
+
 impl<N: Unsigned, R: PrimUInt> BitOrAssign<&Self> for BitBoard<N, R> {
     fn bitor_assign(&mut self, rhs: &Self) {
         unsafe {
@@ -67,10 +93,51 @@ impl<N: Unsigned, R: PrimUInt> BitOrAssign<&Self> for BitBoard<N, R> {
     }
 }
 
+impl<N: Unsigned, R: PrimUInt> BitOrAssign for BitBoard<N, R> {
+    fn bitor_assign(&mut self, rhs: Self) {
+        unsafe {
+            self.block_iter_mut()
+                .zip(rhs.block_iter())
+                .for_each(|(lblock, rblock)| *lblock |= rblock);
+        }
+    }
+}
+
+impl<N: Unsigned, R: PrimUInt> BitXor for &BitBoard<N, R> {
+    type Output = BitBoard<N, R>;
+
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        let mut result = self.clone();
+        unsafe {
+            result
+                .block_iter_mut()
+                .zip(rhs.block_iter())
+                .for_each(|(lblock, rblock)| *lblock ^= rblock);
+            result
+        }
+    }
+}
+
+impl<N: Unsigned, R: PrimUInt> BitXorAssign<&Self> for BitBoard<N, R> {
+    fn bitxor_assign(&mut self, rhs: &Self) {
+        unsafe {
+            self.block_iter_mut()
+                .zip(rhs.block_iter())
+                .for_each(|(lblock, rblock)| *lblock ^= rblock);
+        }
+    }
+}
+
 #[derive(Copy, Clone)]
-pub(crate) enum Shift {
+enum Shift {
     Left,
     Right,
+}
+
+#[derive(Copy, Clone)]
+enum EdgeMask {
+    Left(usize),
+    Right(usize),
 }
 
 impl Shift {
@@ -93,19 +160,44 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
     pub(super) fn shift(&mut self, m: Move) {
         unsafe {
             match m {
-                Move::Left(i) => self.shift_internal(i, Shift::Right, i),
-                Move::Right(i) => self.shift_internal(i, Shift::Left, i),
-                Move::Up(i) => self.shift_internal(i * N::USIZE, Shift::Left, 0),
-                Move::Down(i) => self.shift_internal(i * N::USIZE, Shift::Right, 0),
-                Move::Mix(v) => v.iter().for_each(|m| self.shift(m.clone())),
+                Move::Left(i) => self.shift_internal(i, Shift::Right, Some(EdgeMask::Right(i))),
+                Move::Right(i) => self.shift_internal(i, Shift::Left, Some(EdgeMask::Left(i))),
+                Move::Up(i) => self.shift_internal(i * N::USIZE, Shift::Left, None),
+                Move::Down(i) => self.shift_internal(i * N::USIZE, Shift::Right, None),
+                Move::UpLeft(i) => self.shift_internal(
+                    i * N::USIZE - std::cmp::min(i, N::USIZE),
+                    Shift::Left,
+                    Some(EdgeMask::Right(i)),
+                ),
+                Move::UpRight(i) => self.shift_internal(
+                    i * N::USIZE + std::cmp::min(i, N::USIZE),
+                    Shift::Left,
+                    Some(EdgeMask::Left(i)),
+                ),
+                Move::DownLeft(i) => self.shift_internal(
+                    i * N::USIZE + std::cmp::min(i, N::USIZE),
+                    Shift::Right,
+                    Some(EdgeMask::Right(i)),
+                ),
+                Move::DownRight(i) => self.shift_internal(
+                    i * N::USIZE - std::cmp::min(i, N::USIZE),
+                    Shift::Right,
+                    Some(EdgeMask::Left(i)),
+                ),
             }
         }
     }
 
-    unsafe fn shift_internal(&mut self, mut rhs: usize, direction: Shift, edge_mask_width: usize) {
+    unsafe fn shift_internal(&mut self, mut rhs: usize, direction: Shift, mask: Option<EdgeMask>) {
         let edge_masks: Vec<R> = (0..Self::REQUIRED_BLOCKS)
             .into_iter()
-            .map(|i| Self::edge_mask(direction, edge_mask_width, i))
+            .map(|i| {
+                if let Some(m) = mask {
+                    Self::edge_mask(m, i)
+                } else {
+                    R::max_value()
+                }
+            })
             .collect();
 
         while rhs > 0 {
@@ -163,20 +255,17 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
     // shift direction. Only used in left/right shifts
     // Remember moving left means shifting right, ie Shift::Left
     // will give you the right edge mask
-    fn edge_mask(dir: Shift, width: usize, block_idx: usize) -> R {
-        if width >= N::USIZE {
-            R::zero()
-        } else {
-            !(0..Self::BLOCK_SIZE_BITS)
-                .into_iter()
-                .filter(|i| match dir {
-                    Shift::Left => (((Self::BLOCK_SIZE_BITS) * block_idx) + i) % N::USIZE < width,
-                    Shift::Right => {
-                        N::USIZE - ((((Self::BLOCK_SIZE_BITS) * block_idx) + i) % N::USIZE) - 1
-                            < width
-                    }
-                })
-                .fold(R::zero(), |a, b| a | R::one() << b)
-        }
+    fn edge_mask(mask: EdgeMask, block_idx: usize) -> R {
+        !(0..Self::BLOCK_SIZE_BITS)
+            .into_iter()
+            .filter(|i| match mask {
+                EdgeMask::Left(width) => {
+                    (((Self::BLOCK_SIZE_BITS) * block_idx) + i) % N::USIZE < width
+                }
+                EdgeMask::Right(width) => {
+                    N::USIZE - ((((Self::BLOCK_SIZE_BITS) * block_idx) + i) % N::USIZE) - 1 < width
+                }
+            })
+            .fold(R::zero(), |a, b| a | R::one() << b)
     }
 }

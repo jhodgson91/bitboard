@@ -104,6 +104,14 @@ impl<N: Unsigned, R: PrimUInt> Clone for BitBoard<N, R> {
         }
         result
     }
+
+    fn clone_from(&mut self, from: &Self) {
+        unsafe {
+            self.block_iter_mut()
+                .zip(from.block_iter())
+                .for_each(|(block, other)| *block = other);
+        }
+    }
 }
 
 unsafe impl<N: Unsigned, R: PrimUInt> Send for BitBoard<N, R> {}

@@ -87,3 +87,47 @@ edge_mask<R: PrimUInt>(dir: Shift, mut width: usize, block_idx: usize, board_wid
         .fold(R::zero(), |a, b| a | R::one() << b)
 }
 ```
+
+## Move enum
+NB: Left shift == sends bits right and up the board ( right now )
+
+Up/Down is easy, it will be an exact multiple of N and there's no ambiguity
+
+Left/Right depends on the distance away from the nearest N If a user requested a left shift of 7 on an 8x8 board, we can assume they were going up 1, left 1. This breaks down at the boundary though. If a user left shifts 4, they might be trying to go right 4, or up 1 left 4.
+
+There's an argument to be made that right 4 is, in this case, a more sensible move, but it would be nice if we could be generic. I also don't think that's the only case. There are many grey areas
+
+The Move enum solves this problem. It forces users to specify intention, meaning we can determine the width of the edge mask more easily
+
+# Functional Movement
+Rust often uses functional features for abstraction. For example iterators
+
+I'm attempting to make this for board moves. Eventually, it would be cool if we could do this:
+
+```
+let mut bb = BitBoard<U8>::new(vec![3,3]);
+let castle_moves = bb.moves()
+            .left(1).repeat(8)
+            .right(1).repeat(8)
+            .up(1).repeat(8)
+            .down(1).repeat(8)
+            .collect();
+
+let knight_moves = bb.moves()
+                  .up(1).left(2)
+                  .up(1).right(2)
+                  .up(2).left(1)
+                  .up(2).right(1)
+                  .mirror().collect();
+```
+There are two things I want to achieve with the functional api
+- Better Performance
+- Better API than just doing shifts
+
+### Performance
+Currently, the Shl implementation requires a clone because we don't want to consume the bitboard we're shifting. Every clone is a heap allocation, so for some moves we would need to do a hecking lot of allocations.
+
+There's no way to entirely avoid this, but we can minimise it.
+
+### Better API than plain shifts
+Generating complicated piece moves would either be lots of loops or a bit ass shift. With the functional front-end, we could provide transformations like rotate and mirror to cut this back.

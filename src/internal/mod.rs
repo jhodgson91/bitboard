@@ -1,6 +1,6 @@
 use num::PrimInt;
 use std::fmt::{Binary, Display};
-use std::ops::{BitAndAssign, BitOrAssign, Shl, ShlAssign, Shr, ShrAssign};
+use std::ops::{BitAndAssign, BitOrAssign, BitXor, BitXorAssign, Shl, ShlAssign, Shr, ShrAssign};
 use typenum::*;
 
 pub type BitBoard3x3 = BitBoard<U3, u16>;
@@ -22,6 +22,8 @@ pub trait PrimUInt:
     + Shr
     + ShlAssign
     + ShrAssign
+    + BitXor
+    + BitXorAssign
 {
 }
 
@@ -35,10 +37,9 @@ impl PrimUInt for u64 {}
 
 mod board;
 mod iter;
-mod moves;
 mod ops;
 mod statics;
 
 pub use board::BitBoard;
 pub use iter::BitBoardIter;
-pub use moves::*;
+pub use ops::Move;
