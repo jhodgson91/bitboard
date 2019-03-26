@@ -31,6 +31,8 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
     pub const REQUIRED_BYTES: usize = required_bytes(Self::REQUIRED_BITS);
     pub const REQUIRED_BLOCKS: usize = required_blocks(Self::REQUIRED_BYTES, Self::ALIGNMENT);
 
+    pub const HAS_BLOCK_MASK: bool = Self::BOARD_SIZE % Self::BLOCK_SIZE_BITS != 0;
+
     #[inline(always)]
     pub(super) fn last_block_mask() -> R {
         let remainder = Self::BOARD_SIZE % Self::BLOCK_SIZE_BITS;

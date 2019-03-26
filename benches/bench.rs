@@ -27,6 +27,18 @@ fn real_life() {
     (0..8)
         .into_iter()
         .for_each(|i| moves |= bb_ref << Move::Down(i));
+    (0..8)
+        .into_iter()
+        .for_each(|i| moves |= bb_ref << Move::UpLeft(i));
+    (0..8)
+        .into_iter()
+        .for_each(|i| moves |= bb_ref << Move::DownRight(i));
+    (0..8)
+        .into_iter()
+        .for_each(|i| moves |= bb_ref << Move::UpRight(i));
+    (0..8)
+        .into_iter()
+        .for_each(|i| moves |= bb_ref << Move::DownLeft(i));
     moves ^= bb_ref;
 }
 
