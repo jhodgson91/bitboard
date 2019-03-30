@@ -66,6 +66,34 @@ macro_rules! test_suite {
             }
 
             #[test]
+            fn move_upright_works() {
+                let mut bb = TestBoard::new(vec![(0, 0)]);
+                bb = &bb << Move::UpRight(SIZE - 1, SIZE - 1);
+                assert_eq!(bb.is_set(SIZE - 1, SIZE - 1), true);
+            }
+
+            #[test]
+            fn move_upleft_works() {
+                let mut bb = TestBoard::new(vec![(SIZE - 1, 0)]);
+                bb = &bb << Move::UpLeft(SIZE - 1, SIZE - 1);
+                assert_eq!(bb.is_set(0, SIZE - 1), true);
+            }
+
+            #[test]
+            fn move_downright_works() {
+                let mut bb = TestBoard::new(vec![(0, SIZE - 1)]);
+                bb = &bb << Move::DownRight(SIZE - 1, SIZE - 1);
+                assert_eq!(bb.is_set(SIZE - 1, 0), true);
+            }
+
+            #[test]
+            fn move_downleft_works() {
+                let mut bb = TestBoard::new(vec![(SIZE - 1, SIZE - 1)]);
+                bb = &bb << Move::DownLeft(SIZE - 1, SIZE - 1);
+                assert_eq!(bb.is_set(0, 0), true);
+            }
+
+            #[test]
             fn move_doesnt_add_bits() {
                 let mut bb = TestBoard::new(vec![(SIZE - 1, SIZE - 1)]);
                 bb = &bb << Move::Right(1);
@@ -88,7 +116,10 @@ macro_rules! test_suite {
             #[test]
             fn right_edge_mask_works() {
                 for column in 0..SIZE {
-                    let init = (0..SIZE).into_iter().map(|i| (SIZE - column - 1, i)).collect();
+                    let init = (0..SIZE)
+                        .into_iter()
+                        .map(|i| (SIZE - column - 1, i))
+                        .collect();
                     let mut bb = TestBoard::new(init);
                     assert_eq!(bb.count_ones(), SIZE);
                     bb = &bb << Move::Right(column + 1);

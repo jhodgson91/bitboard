@@ -37,10 +37,11 @@ impl PrimUInt for u64 {}
 
 mod board;
 mod iter;
+mod moves;
 mod ops;
 mod shift;
 mod statics;
 
 pub use board::BitBoard;
 pub use iter::BitBoardIter;
-pub use ops::Move;
+pub use moves::*;

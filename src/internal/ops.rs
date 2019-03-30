@@ -1,19 +1,5 @@
-use super::{BitBoard, PrimUInt};
+use super::*;
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Shl, ShlAssign};
-use typenum::*;
-
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
-pub enum Move {
-    Left(usize),
-    Right(usize),
-    Up(usize),
-    Down(usize),
-
-    UpLeft(usize),
-    UpRight(usize),
-    DownLeft(usize),
-    DownRight(usize),
-}
 
 impl<N: Unsigned, R: PrimUInt> Shl<Move> for &BitBoard<N, R> {
     type Output = BitBoard<N, R>;

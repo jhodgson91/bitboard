@@ -32,30 +32,30 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
     pub(super) fn shift(&mut self, m: Move) {
         unsafe {
             match m {
-                Move::Left(i) => self.shift_internal(i, Shift::Right, Some(EdgeMask::Right(i))),
-                Move::Right(i) => self.shift_internal(i, Shift::Left, Some(EdgeMask::Left(i))),
-                Move::Up(i) => self.shift_internal(i * N::USIZE, Shift::Left, None),
-                Move::Down(i) => self.shift_internal(i * N::USIZE, Shift::Right, None),
-                Move::UpLeft(i) => self.shift_internal(
-                    i * N::USIZE - std::cmp::min(i, N::USIZE),
-                    Shift::Left,
-                    Some(EdgeMask::Right(i)),
-                ),
-                Move::UpRight(i) => self.shift_internal(
-                    i * N::USIZE + std::cmp::min(i, N::USIZE),
-                    Shift::Left,
-                    Some(EdgeMask::Left(i)),
-                ),
-                Move::DownLeft(i) => self.shift_internal(
-                    i * N::USIZE + std::cmp::min(i, N::USIZE),
-                    Shift::Right,
-                    Some(EdgeMask::Right(i)),
-                ),
-                Move::DownRight(i) => self.shift_internal(
-                    i * N::USIZE - std::cmp::min(i, N::USIZE),
-                    Shift::Right,
-                    Some(EdgeMask::Left(i)),
-                ),
+                Move::Up(i) if i < N::USIZE => self.shift_internal(i * N::USIZE, Shift::Left, None),
+                Move::Down(i) if i < N::USIZE => {
+                    self.shift_internal(i * N::USIZE, Shift::Right, None)
+                }
+                Move::Left(i) if i < N::USIZE => {
+                    self.shift_internal(i, Shift::Right, Some(EdgeMask::Right(i)))
+                }
+                Move::Right(i) if i < N::USIZE => {
+                    self.shift_internal(i, Shift::Left, Some(EdgeMask::Left(i)))
+                }
+                Move::UpLeft(u, l) if u < N::USIZE && l < N::USIZE => {
+                    self.shift_internal(u * N::USIZE - l, Shift::Left, Some(EdgeMask::Right(l)))
+                }
+                Move::UpRight(u, r) if u < N::USIZE && r < N::USIZE => {
+                    self.shift_internal(u * N::USIZE + r, Shift::Left, Some(EdgeMask::Left(r)))
+                }
+                Move::DownLeft(d, l) if d < N::USIZE && l < N::USIZE => {
+                    self.shift_internal(d * N::USIZE + l, Shift::Right, Some(EdgeMask::Right(l)))
+                }
+                Move::DownRight(d, r) if d < N::USIZE && r < N::USIZE => {
+                    self.shift_internal(d * N::USIZE - r, Shift::Right, Some(EdgeMask::Left(r)))
+                }
+                Move::NullMove => (),
+                _ => self.reset(),
             }
         }
     }
@@ -137,5 +137,9 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
                 }
             })
             .fold(R::zero(), |a, b| a | R::one() << b)
+    }
+
+    unsafe fn reset(&mut self) {
+        self.block_iter_mut().for_each(|block| *block = R::zero());
     }
 }

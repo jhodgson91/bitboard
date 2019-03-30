@@ -131,3 +131,28 @@ There's no way to entirely avoid this, but we can minimise it.
 
 ### Better API than plain shifts
 Generating complicated piece moves would either be lots of loops or a bit ass shift. With the functional front-end, we could provide transformations like rotate and mirror to cut this back.
+
+## Design Problems
+
+### Collapsing Moves
+We need some way of *collapsing* moves down, but only at appropriate times...
+
+```
+let mut bb = BitBoard;
+
+// This should translate to UpLeft(1)
+bb.moves().left(1).up(1).collect()
+
+// This should be a list of Left(1..7) moves
+bb.moves().left(1).repeat(8).collect()
+
+// This should be a list of Left(1) Right(1)
+bb.moves().left(1).mirror().collect()
+
+// This should be list of Left(1..7) and Right(1..7)
+bb.moves().left(1).repeat(8).mirror().collect()
+```
+
+### Collecting Moves
+Do we collect as we go? Or can we create a list of moves and apply them all at the end?
+I think collect as we go...
