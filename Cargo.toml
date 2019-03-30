@@ -14,8 +14,8 @@ typenum = "1.10.0"
 criterion = "0.2.10"
 
 [[bin]]
-name = "debug"
-path = "src/bin.rs"
+name = "nqueens"
+path = "nqueens/main.rs"
 
 [[bench]]
 name = "bench"

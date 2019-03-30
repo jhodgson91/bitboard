@@ -1,39 +1,23 @@
-use super::{BitBoard, PrimUInt};
-use typenum::Unsigned;
+use super::*;
 
-impl<'a, N: Unsigned, R: PrimUInt> IntoIterator for &'a BitBoard<N, R> {
-    type Item = bool;
-    type IntoIter = BitBoardIter<'a, N, R>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        BitBoardIter {
-            cell: (0, 0),
-            board: self,
-        }
-    }
-}
-
-pub struct BitBoardIter<'a, N: Unsigned, R: PrimUInt = u64> {
-    cell: (usize, usize),
+pub struct BitBoardIter<'a, N: Unsigned, R: PrimUInt> {
     board: &'a BitBoard<N, R>,
+    set: bool,
+    current: usize,
 }
 
 impl<'a, N: Unsigned, R: PrimUInt> Iterator for BitBoardIter<'a, N, R> {
-    type Item = bool;
+    type Item = (usize, usize);
     fn next(&mut self) -> Option<Self::Item> {
-        if self.cell.1 >= N::USIZE {
-            None
-        } else {
-            let result = self.board.is_set(self.cell.0, self.cell.1);
-            if self.cell.0 < N::USIZE {
-                self.cell.0 = (self.cell.0 + 1) % N::USIZE;
-                if self.cell.0 == 0 {
-                    self.cell.1 += 1;
-                }
+        while self.current < BitBoard::<N, R>::BOARD_SIZE {
+            let coord = (self.current % N::USIZE, self.current / N::USIZE);
+            let valid = self.board.is_set(coord.0, coord.1) == self.set;
+            self.current += 1;
+            if valid {
+                return Some(coord);
             }
-
-            Some(result)
         }
+        None
     }
 }
 
@@ -104,6 +88,14 @@ impl<R: PrimUInt> DoubleEndedIterator for BlockIterMut<R> {
 }
 
 impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
+    pub fn positions(&self, set: bool) -> BitBoardIter<N, R> {
+        BitBoardIter {
+            board: self,
+            set,
+            current: 0,
+        }
+    }
+
     pub(super) unsafe fn block_iter(&self) -> BlockIter<R> {
         let start = self.ptr as *const R;
         let end = self.ptr.add(Self::REQUIRED_BLOCKS) as *const R;
