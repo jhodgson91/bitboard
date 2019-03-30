@@ -1,4 +1,5 @@
 # Shifting contiguous memory
+WARNING - BRAIN DUMP AHEAD
 I need to write this out because there's a lot going on.
 
 Shifting contiguous memory blocks requires saving the lost bits from each shift, and applying them to the next block. For BitBoards, there are some extra steps we need in between, depending on which shift you are performing.
@@ -156,3 +157,17 @@ bb.moves().left(1).repeat(8).mirror().collect()
 ### Collecting Moves
 Do we collect as we go? Or can we create a list of moves and apply them all at the end?
 I think collect as we go...
+
+## Other ideas
+```
+bb.moves().translate(UpLeft(1,2)).translate(UpLeft(2,1)).rotate(Clockwise).mirror()
+//                 Move                       Move           Vec<Move>        Vec<Move>
+
+struct Moves {
+    moves: Vec<Move>
+}
+
+translate -> Simple push to moves
+rotate -> Push rotation of everything to moves
+repeat -> Push repeated of everything to moves
+```
