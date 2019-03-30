@@ -11,35 +11,18 @@ use typenum::*;
 type RealLife = BitBoard<U8, u64>;
 
 fn real_life() {
-    let mut bb = RealLife::new(vec![(4, 4)]);
-    let bb_ref = &bb;
+    use Move::*;
+    use Rotation::*;
 
-    let mut moves = RealLife::default();
-    (0..8)
-        .into_iter()
-        .for_each(|i| moves |= bb_ref << Move::Left(i));
-    (0..8)
-        .into_iter()
-        .for_each(|i| moves |= bb_ref << Move::Right(i));
-    (0..8)
-        .into_iter()
-        .for_each(|i| moves |= bb_ref << Move::Up(i));
-    (0..8)
-        .into_iter()
-        .for_each(|i| moves |= bb_ref << Move::Down(i));
-    (0..8)
-        .into_iter()
-        .for_each(|i| moves |= bb_ref << Move::UpLeft(i));
-    (0..8)
-        .into_iter()
-        .for_each(|i| moves |= bb_ref << Move::DownRight(i));
-    (0..8)
-        .into_iter()
-        .for_each(|i| moves |= bb_ref << Move::UpRight(i));
-    (0..8)
-        .into_iter()
-        .for_each(|i| moves |= bb_ref << Move::DownLeft(i));
-    moves ^= bb_ref;
+    let mut bb = RealLife::new(vec![(4, 4)]);
+    let queen = bb
+        .moves()
+        .translate(Up(1))
+        .translate(UpLeft(1, 1))
+        .rotate(Clockwise)
+        .mirror()
+        .repeat(8)
+        .collect();
 }
 
 fn criterion_benchmark(c: &mut Criterion) {

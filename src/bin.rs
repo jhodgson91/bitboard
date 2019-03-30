@@ -7,7 +7,7 @@ fn main() {
     use Rotation::*;
     use Move::*;
     
-    let mut bb = BitBoard::<U8>::new(vec![(4, 0)]);
+    let mut bb = BitBoard::<U8>::new(vec![(4, 4)]);
     let n = std::time::Instant::now();
     let knight = bb.moves()
             .translate(UpRight(2,1))
@@ -21,11 +21,9 @@ fn main() {
             .mirror()
             .repeat(8)
             .collect();
-
-    let skip = bb.moves().translate(Up(2)).repeat(2).collect();
-    println!("Took: {}us\n", n.elapsed().as_micros());
+    let done = n.elapsed().as_micros();
 
     println!("Knight: \n{}", knight);
     println!("Queen: \n{}", queen);
-    println!("Skip: \n{}", skip);
+    println!("Took: {}us", done);
 }
