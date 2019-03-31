@@ -144,6 +144,11 @@ impl<'a, N: Unsigned, R: PrimUInt> Moves<'a, N, R> {
         self
     }
 
+    pub fn identity(mut self) -> Self {
+        self.moves.push(NullMove);
+        self
+    }
+
     pub fn collect(self) -> BitBoard<N, R> {
         let mut result = BitBoard::default();
         for m in self.moves {

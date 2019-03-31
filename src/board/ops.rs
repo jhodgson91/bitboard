@@ -66,6 +66,16 @@ impl<N: Unsigned, R: PrimUInt> BitAnd for BitBoard<N, R> {
     }
 }
 
+impl<N: Unsigned, R: PrimUInt> BitAndAssign for BitBoard<N, R> {
+    fn bitand_assign(&mut self, rhs: Self) {
+        unsafe {
+            self.block_iter_mut()
+                .zip(rhs.block_iter())
+                .for_each(|(lblock, rblock)| *lblock &= rblock);
+        }
+    }
+}
+
 impl<N: Unsigned, R: PrimUInt> BitAndAssign<&Self> for BitBoard<N, R> {
     fn bitand_assign(&mut self, rhs: &Self) {
         unsafe {

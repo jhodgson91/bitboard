@@ -12,7 +12,7 @@ macro_rules! test_suite {
             #[test]
             fn default_works() {
                 let bb = TestBoard::default();
-                assert_eq!(0, bb.positions(true).count());
+                assert_eq!(0, bb.cells(true).count());
             }
 
             #[test]

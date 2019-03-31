@@ -11,9 +11,8 @@ impl<'a, N: Unsigned, R: PrimUInt> Iterator for BitBoardIter<'a, N, R> {
     fn next(&mut self) -> Option<Self::Item> {
         while self.current < BitBoard::<N, R>::BOARD_SIZE {
             let coord = (self.current % N::USIZE, self.current / N::USIZE);
-            let valid = self.board.is_set(coord.0, coord.1) == self.set;
             self.current += 1;
-            if valid {
+            if self.board.is_set(coord.0, coord.1) == self.set {
                 return Some(coord);
             }
         }
@@ -88,7 +87,7 @@ impl<R: PrimUInt> DoubleEndedIterator for BlockIterMut<R> {
 }
 
 impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
-    pub fn positions(&self, set: bool) -> BitBoardIter<N, R> {
+    pub fn cells(&self, set: bool) -> BitBoardIter<N, R> {
         BitBoardIter {
             board: self,
             set,
