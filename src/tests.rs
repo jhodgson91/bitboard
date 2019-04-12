@@ -6,65 +6,127 @@ macro_rules! test_suite {
         mod $n {
             use super::*;
 
+            const SIZE: usize = $u::USIZE;
+            type TestBoard = BitBoard<$u, $r>;
+
             #[test]
             fn default_works() {
-                let bb = BitBoard::<$u, $r>::default();
+                let bb = TestBoard::default();
                 assert_eq!(false, bb.into_iter().any(|b| b));
             }
 
             #[test]
             fn new_works() {
-                let initial = (0..$u::USIZE).map(|n| (n, n)).collect();
-                let bb = BitBoard::<$u, $r>::new(initial);
-                for i in 0..$u::USIZE {
+                let initial = (0..SIZE).map(|n| (n, n)).collect();
+                let bb = TestBoard::new(initial);
+                for i in 0..SIZE {
                     assert_eq!(bb.is_set(i, i), true);
                 }
-                assert_eq!(bb.count_ones(), $u::USIZE);
+                assert_eq!(bb.count_ones(), SIZE);
             }
 
             #[test]
             fn set_works() {
-                let mut bb = BitBoard::<$u, $r>::default();
-                for i in 0..$u::USIZE {
-                    for j in 0..$u::USIZE {
+                let mut bb = TestBoard::default();
+                for i in 0..SIZE {
+                    for j in 0..SIZE {
                         bb.set(i, j);
                     }
                 }
 
-                assert_eq!(bb.count_ones(), $u::USIZE * $u::USIZE);
+                assert_eq!(bb.count_ones(), SIZE * SIZE);
             }
 
             #[test]
-            fn shl_works() {
-                let mut bb = BitBoard::<$u, $r>::new(vec![(0, 0)]);
-                bb = &bb << ($u::USIZE * $u::USIZE) - 1;
-                assert_eq!(bb.count_ones(), 1);
-                assert_eq!(bb.is_set($u::USIZE - 1, $u::USIZE - 1), true);
-            }
-
-            #[test]
-            fn shlassign_works() {
-                let mut bb = BitBoard::<$u, $r>::new(vec![(0, 0)]);
-                bb <<= ($u::USIZE * $u::USIZE) - 1;
-                assert_eq!(bb.count_ones(), 1);
-                assert_eq!(bb.is_set($u::USIZE - 1, $u::USIZE - 1), true);
-            }
-
-            #[test]
-            fn shr_works() {
-                let mut bb = BitBoard::<$u, $r>::new(vec![($u::USIZE - 1, $u::USIZE - 1)]);
-                bb = &bb >> ($u::USIZE * $u::USIZE) - 1;
-                assert_eq!(bb.count_ones(), 1);
+            fn move_left_works() {
+                let mut bb = TestBoard::new(vec![(SIZE - 1, 0)]);
+                bb = &bb << Move::Left(SIZE - 1);
                 assert_eq!(bb.is_set(0, 0), true);
             }
 
             #[test]
-            fn shrassign_works() {
-                let mut bb = BitBoard::<$u, $r>::new(vec![($u::USIZE - 1, $u::USIZE - 1)]);
-                bb >>= ($u::USIZE * $u::USIZE) - 1;
-                assert_eq!(bb.count_ones(), 1);
+            fn move_right_works() {
+                let mut bb = TestBoard::new(vec![(0, 0)]);
+                bb = &bb << Move::Right(SIZE - 1);
+                assert_eq!(bb.is_set(SIZE - 1, 0), true);
+            }
+
+            #[test]
+            fn move_up_works() {
+                let mut bb = TestBoard::new(vec![(0, 0)]);
+                bb = &bb << Move::Up(SIZE - 1);
+                assert_eq!(bb.is_set(0, SIZE - 1), true);
+            }
+
+            #[test]
+            fn move_down_works() {
+                let mut bb = TestBoard::new(vec![(0, SIZE - 1)]);
+                bb = &bb << Move::Down(SIZE - 1);
                 assert_eq!(bb.is_set(0, 0), true);
             }
+
+            #[test]
+            fn move_upright_works() {
+                let mut bb = TestBoard::new(vec![(0, 0)]);
+                bb = &bb << Move::UpRight(SIZE - 1, SIZE - 1);
+                assert_eq!(bb.is_set(SIZE - 1, SIZE - 1), true);
+            }
+
+            #[test]
+            fn move_upleft_works() {
+                let mut bb = TestBoard::new(vec![(SIZE - 1, 0)]);
+                bb = &bb << Move::UpLeft(SIZE - 1, SIZE - 1);
+                assert_eq!(bb.is_set(0, SIZE - 1), true);
+            }
+
+            #[test]
+            fn move_downright_works() {
+                let mut bb = TestBoard::new(vec![(0, SIZE - 1)]);
+                bb = &bb << Move::DownRight(SIZE - 1, SIZE - 1);
+                assert_eq!(bb.is_set(SIZE - 1, 0), true);
+            }
+
+            #[test]
+            fn move_downleft_works() {
+                let mut bb = TestBoard::new(vec![(SIZE - 1, SIZE - 1)]);
+                bb = &bb << Move::DownLeft(SIZE - 1, SIZE - 1);
+                assert_eq!(bb.is_set(0, 0), true);
+            }
+
+            #[test]
+            fn move_doesnt_add_bits() {
+                let mut bb = TestBoard::new(vec![(SIZE - 1, SIZE - 1)]);
+                bb = &bb << Move::Right(1);
+                assert_eq!(bb.count_ones(), 0);
+                bb = &bb << Move::Left(1);
+                assert_eq!(bb.count_ones(), 0);
+            }
+
+            #[test]
+            fn left_edge_mask_works() {
+                for column in 0..SIZE {
+                    let init = (0..SIZE).into_iter().map(|i| (column, i)).collect();
+                    let mut bb = TestBoard::new(init);
+                    assert_eq!(bb.count_ones(), SIZE);
+                    bb = &bb << Move::Left(column + 1);
+                    assert_eq!(bb.count_ones(), 0);
+                }
+            }
+
+            #[test]
+            fn right_edge_mask_works() {
+                for column in 0..SIZE {
+                    let init = (0..SIZE)
+                        .into_iter()
+                        .map(|i| (SIZE - column - 1, i))
+                        .collect();
+                    let mut bb = TestBoard::new(init);
+                    assert_eq!(bb.count_ones(), SIZE);
+                    bb = &bb << Move::Right(column + 1);
+                    assert_eq!(bb.count_ones(), 0);
+                }
+            }
+
         }
     };
 }

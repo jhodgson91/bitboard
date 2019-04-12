@@ -1,6 +1,6 @@
 use num::PrimInt;
 use std::fmt::{Binary, Display};
-use std::ops::{BitAndAssign, BitOrAssign, Shl, ShlAssign, Shr, ShrAssign};
+use std::ops::{BitAndAssign, BitOrAssign, BitXor, BitXorAssign, Shl, ShlAssign, Shr, ShrAssign};
 use typenum::*;
 
 pub type BitBoard3x3 = BitBoard<U3, u16>;
@@ -22,17 +22,26 @@ pub trait PrimUInt:
     + Shr
     + ShlAssign
     + ShrAssign
+    + BitXor
+    + BitXorAssign
 {
 }
 
 impl PrimUInt for u8 {}
 impl PrimUInt for u16 {}
-impl PrimUInt for u64 {}
 impl PrimUInt for u32 {}
+impl PrimUInt for u64 {}
+
+// u128 alignment bug: https://github.com/rust-lang/rust/issues/54341
+// impl PrimUInt for u128 {}
 
 mod board;
 mod iter;
+mod moves;
 mod ops;
+mod shift;
+mod statics;
 
 pub use board::BitBoard;
 pub use iter::BitBoardIter;
+pub use moves::*;

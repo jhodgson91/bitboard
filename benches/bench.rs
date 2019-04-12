@@ -8,15 +8,25 @@ use criterion::Criterion;
 use bitboard::*;
 use typenum::*;
 
-fn big_shift() {
-    let mut bb = BitBoard::<U100, u8>::new(vec![]);
+type RealLife = BitBoard<U8, u64>;
 
-    bb = &bb << 100;
-    bb = &bb >> 100;
+fn real_life() {
+    use Move::*;
+    use Rotation::*;
+
+    let mut bb = RealLife::new(vec![(4, 4)]);
+    let queen = bb
+        .moves()
+        .translate(Up(1))
+        .translate(UpLeft(1, 1))
+        .rotate(Clockwise)
+        .mirror()
+        .repeat(8)
+        .collect();
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
-    c.bench_function("Bit Shift", |b| b.iter(|| big_shift()));
+    c.bench_function("Moves", |b| b.iter(|| real_life()));
 }
 
 criterion_group!(benches, criterion_benchmark);
