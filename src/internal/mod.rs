@@ -33,7 +33,7 @@ impl PrimUInt for u32 {}
 impl PrimUInt for u64 {}
 
 // u128 alignment bug: https://github.com/rust-lang/rust/issues/54341
-//impl PrimUInt for u128 {}
+// impl PrimUInt for u128 {}
 
 mod board;
 mod iter;
