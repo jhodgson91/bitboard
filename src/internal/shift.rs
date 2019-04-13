@@ -54,7 +54,7 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
                 Move::DownRight(d, r) if d < N::USIZE && r < N::USIZE => {
                     self.shift_internal(d * N::USIZE - r, Shift::Right, Some(EdgeMask::Left(r)))
                 }
-                Move::NullMove => (),
+                Move::Identity => (),
                 _ => self.reset(),
             }
         }

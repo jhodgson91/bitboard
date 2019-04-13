@@ -27,7 +27,7 @@ lto = true
 
 [[bin]]
 name = "debug"
-path = "src/bin.rs"
+path = "src/debug.rs"
 
 [[bench]]
 name = "bench"
