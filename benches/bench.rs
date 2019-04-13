@@ -11,14 +11,11 @@ use typenum::*;
 type RealLife = BitBoard<U8, u64>;
 
 fn real_life() {
-    use Move::*;
     use Rotation::*;
 
-    let mut bb = RealLife::new(vec![(4, 4)]);
-    let queen = bb
-        .moves()
-        .translate(Up(1))
-        .translate(UpLeft(1, 1))
+    let queen = RealLife::make_moves_from(4,4)
+        .up(1)
+        .upleft(1, 1)
         .rotate(Clockwise)
         .mirror()
         .repeat(8)
