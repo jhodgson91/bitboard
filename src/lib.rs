@@ -5,6 +5,6 @@ extern crate typenum;
 #[cfg(test)]
 mod tests;
 
-mod internal;
+mod board;
 
-pub use internal::*;
+pub use board::*;
