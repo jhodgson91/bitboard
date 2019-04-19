@@ -1,11 +1,10 @@
-use super::PrimUInt;
-use std::alloc;
+use super::*;
 use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
 use typenum::Unsigned;
 
 pub struct BitBoard<N: Unsigned, R: PrimUInt = u64> {
-    pub(super) ptr: *mut R,
+    pub(super) blocks: Vec<R>,
     _typenum: PhantomData<N>,
 }
 
@@ -22,94 +21,69 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
     pub fn set(&mut self, x: usize, y: usize) {
         if Self::in_bounds(x, y) {
             let (offset, bit_pos) = Self::map_coords(x, y);
-            unsafe { *self.block_at_mut(offset) |= bit_pos };
+            self.blocks[offset] |= bit_pos;
         }
     }
 
     pub fn unset(&mut self, x: usize, y: usize) {
         if Self::in_bounds(x, y) {
             let (offset, bit_pos) = Self::map_coords(x, y);
-            unsafe { *self.block_at_mut(offset) &= !bit_pos };
+            self.blocks[offset] &= !bit_pos;
         }
     }
 
     pub fn is_set(&self, x: usize, y: usize) -> bool {
         if Self::in_bounds(x, y) {
             let (offset, bit_pos) = Self::map_coords(x, y);
-            unsafe { self.block_at(offset) & bit_pos != R::zero() }
+            self.blocks[offset] & bit_pos != R::zero()
         } else {
             false
         }
     }
 
     pub fn count_ones(&self) -> usize {
-        unsafe { self.block_iter().map(|b| b.count_ones() as usize).sum() }
+        self.blocks.iter().map(|b| b.count_ones() as usize).sum()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        !self.blocks.iter().any(|r| *r != R::zero())
+    }
+
+    pub fn edge_mask(mask: EdgeMask) -> Self {
+        let mut result = Self::default();
+        for (i, block) in result.blocks.iter_mut().enumerate() {
+            *block |= Self::edge_mask_internal(mask, i);
+        }
+        result
     }
 
     fn in_bounds(x: usize, y: usize) -> bool {
         x < N::USIZE && y < N::USIZE
     }
 
-    fn map_coords(x: usize, y: usize) -> (isize, R) {
+    fn map_coords(x: usize, y: usize) -> (usize, R) {
         let pos = x + y * N::USIZE;
         let byte_offset = pos / Self::ALIGNMENT_BITS;
         let bit_pos: R = R::one() << (pos % Self::ALIGNMENT_BITS);
 
-        (byte_offset as isize, bit_pos)
-    }
-
-    #[inline(always)]
-    pub(super) unsafe fn block_at(&self, i: isize) -> R {
-        *self.ptr.offset(i)
-    }
-
-    #[inline(always)]
-    pub(super) unsafe fn block_at_mut(&mut self, i: isize) -> *mut R {
-        self.ptr.offset(i)
+        (byte_offset, bit_pos)
     }
 }
 
 impl<N: Unsigned, R: PrimUInt> Default for BitBoard<N, R> {
     fn default() -> Self {
-        let layout = Self::layout();
-        let ptr;
-
-        unsafe {
-            ptr = alloc::alloc_zeroed(layout) as *mut R;
-        };
-
         BitBoard {
-            ptr,
+            blocks: vec![R::zero(); Self::REQUIRED_BLOCKS],
             _typenum: PhantomData,
         }
     }
 }
 
-impl<N: Unsigned, R: PrimUInt> Drop for BitBoard<N, R> {
-    fn drop(&mut self) {
-        let layout = Self::layout();
-        unsafe { alloc::dealloc(self.ptr as *mut u8, layout) }
-    }
-}
-
 impl<N: Unsigned, R: PrimUInt> Clone for BitBoard<N, R> {
     fn clone(&self) -> Self {
-        let result = BitBoard::<N, R>::default();
-        unsafe {
-            std::ptr::copy(
-                self.ptr as *const u8,
-                result.ptr as *mut u8,
-                Self::REQUIRED_BYTES,
-            );
-        }
-        result
-    }
-
-    fn clone_from(&mut self, from: &Self) {
-        unsafe {
-            self.block_iter_mut()
-                .zip(from.block_iter())
-                .for_each(|(block, other)| *block = other);
+        BitBoard {
+            blocks: self.blocks.clone(),
+            _typenum: PhantomData::<N>,
         }
     }
 }
@@ -128,27 +102,24 @@ impl<N: Unsigned, R: PrimUInt> Debug for BitBoard<N, R> {
         writeln!(f, "Allocated bits  : {}", Self::REQUIRED_BITS)?;
         writeln!(f, "Alignment       : {}", Self::ALIGNMENT)?;
         writeln!(f, "Last Block Mask : {:b}", Self::last_block_mask())?;
-        writeln!(f, "Data            : {:?}", self.ptr)?;
-        unsafe {
-            self.block_iter().rev().for_each(|block| {
-                for i in 0..Self::BLOCK_SIZE_BITS {
-                    let shift: R = R::one() << (Self::BLOCK_SIZE_BITS - i - 1);
+        self.blocks.iter().rev().for_each(|block| {
+            for i in 0..Self::BLOCK_SIZE_BITS {
+                let shift: R = R::one() << (Self::BLOCK_SIZE_BITS - i - 1);
 
-                    if block & shift != R::zero() {
-                        if write!(f, "1").is_err() {
-                            return;
-                        }
-                    } else if write!(f, "0").is_err() {
+                if *block & shift != R::zero() {
+                    if write!(f, "1").is_err() {
                         return;
                     }
-                }
-
-                if write!(f, " ").is_err() {
+                } else if write!(f, "0").is_err() {
                     return;
                 }
-            });
-            writeln!(f)?;
-        }
+            }
+
+            if write!(f, " ").is_err() {
+                return;
+            }
+        });
+        writeln!(f)?;
 
         Ok(())
     }

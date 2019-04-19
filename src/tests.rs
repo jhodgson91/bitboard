@@ -12,7 +12,7 @@ macro_rules! test_suite {
             #[test]
             fn default_works() {
                 let bb = TestBoard::default();
-                assert_eq!(false, bb.into_iter().any(|b| b));
+                assert_eq!(true, bb.is_empty());
             }
 
             #[test]

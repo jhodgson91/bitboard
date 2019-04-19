@@ -1,5 +1,4 @@
 use super::*;
-use std::alloc::Layout;
 use std::mem;
 
 const fn required_bits(board_size: usize, alignment_bits: usize) -> usize {
@@ -40,10 +39,5 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
             0 => R::zero(),
             _ => (R::one() + R::one()).pow(remainder as u32) - R::one(),
         }
-    }
-
-    #[inline(always)]
-    pub(super) fn layout() -> Layout {
-        Layout::from_size_align(Self::REQUIRED_BYTES, Self::ALIGNMENT).unwrap()
     }
 }

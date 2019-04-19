@@ -12,6 +12,7 @@ pub type BitBoard8x8 = BitBoard<U8, u64>;
 
 pub trait PrimUInt:
     PrimInt
+    + Clone
     + num::Unsigned
     + num::Zero
     + BitAndAssign
@@ -36,12 +37,11 @@ impl PrimUInt for u64 {}
 // impl PrimUInt for u128 {}
 
 mod board;
-mod iter;
 mod moves;
 mod ops;
 mod shift;
 mod statics;
 
 pub use board::BitBoard;
-pub use iter::BitBoardIter;
 pub use moves::*;
+pub use shift::*;

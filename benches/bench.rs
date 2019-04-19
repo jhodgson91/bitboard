@@ -8,22 +8,15 @@ use criterion::Criterion;
 use bitboard::*;
 use typenum::*;
 
-type RealLife = BitBoard<U8, u64>;
-
-fn real_life() {
-    use Rotation::*;
-
-    let queen = RealLife::make_moves_from(4,4)
-        .up(1)
-        .upleft(1, 1)
-        .rotate(Clockwise)
-        .mirror()
-        .repeat(8)
-        .collect();
-}
+type RealLife = BitBoard<U16, u64>;
 
 fn criterion_benchmark(c: &mut Criterion) {
-    c.bench_function("Moves", |b| b.iter(|| real_life()));
+    let mut q1 = RealLife::new(vec![(4,4)]);
+    let mut q2 = RealLife::new(vec![(4,4)]);
+
+    c.bench_function("allocate", |b| b.iter(|| RealLife::default()));
+    c.bench_function("unmasked_shift", move |b| b.iter( || { q1 <<= Move::Up(1) } ));
+    c.bench_function("masked_shift", move |b| b.iter( || { q2 <<= Move::UpLeft(1,1) }));
 }
 
 criterion_group!(benches, criterion_benchmark);
