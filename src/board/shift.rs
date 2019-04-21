@@ -52,35 +52,31 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
                 self.shift_internal(d * N::USIZE - r, Shift::Right, Some(EdgeMask::Left(r)))
             }
             Move::Identity => (),
-            _ => self.reset(),
+            _ => self.blocks.iter_mut().for_each(|block| *block = R::zero()),
         }
     }
 
     fn shift_internal(&mut self, mut rhs: usize, direction: Shift, mask: Option<EdgeMask>) {
-        let edge_masks: Option<Vec<R>> = if let Some(m) = mask {
-            Some(
-                (0..Self::REQUIRED_BLOCKS)
-                    .into_iter()
-                    .map(|i| Self::edge_mask_internal(m, i))
-                    .collect(),
-            )
-        } else {
-            None
-        };
-
         while rhs > 0 {
             let mut prev_lost = R::zero();
 
-            self.enumerate_blocks(direction, |idx, block| {
-                let mask = if let Some(v) = &edge_masks {
-                    v[idx]
-                } else {
-                    R::max_value()
-                };
-                prev_lost = Self::shift_block(direction, rhs, prev_lost, block, mask);
-            });
+            match direction {
+                Shift::Left => self.blocks.iter_mut().for_each(|block| {
+                    prev_lost = Self::shift_block(direction, rhs, prev_lost, block)
+                }),
+                Shift::Right => self.blocks.iter_mut().rev().for_each(|block| {
+                    prev_lost = Self::shift_block(direction, rhs, prev_lost, block)
+                }),
+            };
 
             rhs -= std::cmp::min(Self::BLOCK_SIZE_BITS, rhs);
+        }
+
+        if let Some(m) = mask {
+            self.blocks
+                .iter_mut()
+                .enumerate()
+                .for_each(|(i, block)| *block &= Self::edge_mask_internal(m, i));
         }
 
         if Self::HAS_BLOCK_MASK {
@@ -90,36 +86,16 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
         }
     }
 
-    // Convenience function for enumerating the blocks correctly during shifts
-    fn enumerate_blocks(&mut self, dir: Shift, mut op: impl FnMut(usize, &mut R)) {
-        match dir {
-            Shift::Left => {
-                for (i, block) in self.blocks.iter_mut().enumerate() {
-                    op(i, block);
-                }
-            }
-            Shift::Right => {
-                for (i, block) in self.blocks.iter_mut().rev().enumerate() {
-                    op(Self::REQUIRED_BLOCKS - i - 1, block);
-                }
-            }
-        }
-    }
-
     // Performs a shift on a single block, returning the bits that would be lost
-    fn shift_block(dir: Shift, by: usize, prev_lost: R, block: &mut R, mask: R) -> R {
+    fn shift_block(dir: Shift, by: usize, prev_lost: R, block: &mut R) -> R {
         if by >= Self::BLOCK_SIZE_BITS {
             let lost = *block;
             *block = prev_lost;
-            if by == Self::BLOCK_SIZE_BITS {
-                *block &= mask;
-            }
             lost
         } else {
             let lost = dir.back_shift(*block, Self::BLOCK_SIZE_BITS - by);
             *block = dir.shift(*block, by);
             *block |= prev_lost;
-            *block &= mask;
             lost
         }
     }
@@ -135,9 +111,5 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
                 EdgeMask::Right(width) => N::USIZE - ((start + i) % N::USIZE) - 1 < width,
             })
             .fold(R::zero(), |a, b| a | R::one() << b)
-    }
-
-    fn reset(&mut self) {
-        self.blocks.iter_mut().for_each(|block| *block = R::zero());
     }
 }

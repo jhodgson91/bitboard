@@ -17,6 +17,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("allocate", |b| b.iter(|| RealLife::default()));
     c.bench_function("unmasked_shift", move |b| b.iter( || { q1 <<= Move::Up(1) } ));
     c.bench_function("masked_shift", move |b| b.iter( || { q2 <<= Move::UpLeft(1,1) }));
+    c.bench_function("queen_moves", |b| b.iter(|| { RealLife::make_moves_from(4,4).up(1).upleft(1,1).rotate(Rotation::Clockwise).mirror().repeat(8).collect() }));
 }
 
 criterion_group!(benches, criterion_benchmark);
