@@ -63,8 +63,8 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
 
     fn map_coords(x: usize, y: usize) -> (usize, R) {
         let pos = x + y * N::USIZE;
-        let byte_offset = pos / Self::ALIGNMENT_BITS;
-        let bit_pos: R = R::one() << (pos % Self::ALIGNMENT_BITS);
+        let byte_offset = pos / Self::BLOCK_SIZE_BITS;
+        let bit_pos: R = R::one() << (pos % Self::BLOCK_SIZE_BITS);
 
         (byte_offset, bit_pos)
     }
@@ -98,28 +98,7 @@ impl<N: Unsigned, R: PrimUInt> Debug for BitBoard<N, R> {
         writeln!(f, "Size            : {} bits", Self::BOARD_SIZE)?;
         writeln!(f, "Block size      : {}-bit", Self::BLOCK_SIZE_BITS)?;
         writeln!(f, "Required blocks : {}", Self::REQUIRED_BLOCKS)?;
-        writeln!(f, "Allocated bytes : {}", Self::REQUIRED_BYTES)?;
-        writeln!(f, "Allocated bits  : {}", Self::REQUIRED_BITS)?;
-        writeln!(f, "Alignment       : {}", Self::ALIGNMENT)?;
         writeln!(f, "Last Block Mask : {:b}", Self::last_block_mask())?;
-        self.blocks.iter().rev().for_each(|block| {
-            for i in 0..Self::BLOCK_SIZE_BITS {
-                let shift: R = R::one() << (Self::BLOCK_SIZE_BITS - i - 1);
-
-                if *block & shift != R::zero() {
-                    if write!(f, "1").is_err() {
-                        return;
-                    }
-                } else if write!(f, "0").is_err() {
-                    return;
-                }
-            }
-
-            if write!(f, " ").is_err() {
-                return;
-            }
-        });
-        writeln!(f)?;
 
         Ok(())
     }

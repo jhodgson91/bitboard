@@ -80,7 +80,7 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
         }
 
         if Self::HAS_BLOCK_MASK {
-            if let Some(block) = self.blocks.iter_mut().last() {
+            if let Some(block) = self.blocks.last_mut() {
                 *block &= Self::last_block_mask();
             }
         }
