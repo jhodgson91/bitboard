@@ -1,21 +1,45 @@
 use bitboard::*;
 use typenum::*;
 
-type ChessBoard = BitBoard<U100, u128>;
+type ChessBoard = BitBoard<U16, u64>;
 
-use std::time::Instant;
+fn backtracking_nqueens(last: &ChessBoard, row: usize) -> Option<ChessBoard> {
+    let mut result = last.clone();
+        
+    if row >= ChessBoard::WIDTH {
+        return Some(result);
+    }
+
+    let moves = |x: usize, y: usize| ChessBoard::make_moves_from(x, y)
+            .up(1)
+            .upleft(1, 1)
+            .rotate(Rotation::Clockwise)
+            .repeat(ChessBoard::WIDTH)
+            .mirror()
+            .collect();
+
+    for col in 0..ChessBoard::WIDTH {
+        if (moves(col, row) & last).is_empty() {
+            result.set(col, row);
+            if let Some(bb) = backtracking_nqueens(&result, row + 1) {
+                return Some(bb);
+            }
+            result.unset(col, row);
+        }
+    }
+
+    None
+}
+
 fn main() {
-    use Rotation::*;
+    use std::time::Instant;
+
     let t = Instant::now();
 
-    let moves = ChessBoard::make_moves_from(8, 8)
-        .up(1)
-        .upleft(1, 1)
-        .rotate(Clockwise)
-        .repeat(16)
-        .mirror()
-        .collect();
-    let elapsed = t.elapsed().as_micros();
-    dbg!(moves);
-    println!("Took {}us", elapsed);
+    let result = backtracking_nqueens(&ChessBoard::default(), 0);
+    let elapsed = t.elapsed().as_millis();
+    if let Some(bb) = result {
+        println!("{}", bb);
+        println!("Took {}ms", elapsed);        
+    }
 }

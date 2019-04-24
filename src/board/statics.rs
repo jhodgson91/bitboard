@@ -13,7 +13,8 @@ const fn required_blocks(total_bits: usize, block_size_bits: usize) -> usize {
 }
 
 impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
-    pub const BOARD_SIZE: usize = N::USIZE * N::USIZE;
+    pub const WIDTH: usize = N::USIZE;
+    pub const BOARD_SIZE: usize = Self::WIDTH * Self::WIDTH;
 
     pub const BLOCK_SIZE_BITS: usize = mem::size_of::<R>() * 8;
 

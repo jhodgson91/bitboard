@@ -55,6 +55,33 @@ impl<N: Unsigned, R: PrimUInt> BitAnd for &BitBoard<N, R> {
     }
 }
 
+impl<N: Unsigned, R: PrimUInt> BitAnd<&Self> for &BitBoard<N, R> {
+    type Output = BitBoard<N, R>;
+    fn bitand(self, rhs: &Self) -> Self::Output {
+        let mut result = BitBoard::default();
+        result
+            .blocks
+            .iter_mut()
+            .zip(rhs.blocks.iter())
+            .zip(self.blocks.iter())
+            .for_each(|((block, lblock), rblock)| *block = *lblock & *rblock);
+        result
+    }
+}
+
+impl<N: Unsigned, R: PrimUInt> BitAnd<&Self> for BitBoard<N, R> {
+    type Output = BitBoard<N, R>;
+    fn bitand(self, rhs: &Self) -> Self::Output {
+        let mut result = self.clone();
+        result
+            .blocks
+            .iter_mut()
+            .zip(rhs.blocks.iter())
+            .for_each(|(lblock, rblock)| *lblock &= *rblock);
+        result
+    }
+}
+
 impl<N: Unsigned, R: PrimUInt> BitAnd for BitBoard<N, R> {
     type Output = Self;
     fn bitand(mut self, rhs: Self) -> Self::Output {
@@ -92,6 +119,33 @@ impl<N: Unsigned, R: PrimUInt> BitOr for &BitBoard<N, R> {
 
     fn bitor(self, rhs: Self) -> Self::Output {
         let mut result = (*self).clone();
+        result
+            .blocks
+            .iter_mut()
+            .zip(rhs.blocks.iter())
+            .for_each(|(lblock, rblock)| *lblock |= *rblock);
+        result
+    }
+}
+
+impl<N: Unsigned, R: PrimUInt> BitOr<&Self> for &BitBoard<N, R> {
+    type Output = BitBoard<N, R>;
+    fn bitor(self, rhs: &Self) -> Self::Output {
+        let mut result = BitBoard::default();
+        result
+            .blocks
+            .iter_mut()
+            .zip(rhs.blocks.iter())
+            .zip(self.blocks.iter())
+            .for_each(|((block, lblock), rblock)| *block = *lblock | *rblock);
+        result
+    }
+}
+
+impl<N: Unsigned, R: PrimUInt> BitOr<&Self> for BitBoard<N, R> {
+    type Output = BitBoard<N, R>;
+    fn bitor(self, rhs: &Self) -> Self::Output {
+        let mut result = self.clone();
         result
             .blocks
             .iter_mut()
