@@ -1,4 +1,3 @@
-extern crate criterion;
 extern crate num;
 extern crate typenum;
 

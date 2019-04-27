@@ -1,7 +1,7 @@
 use bitboard::*;
 use typenum::*;
 
-type ChessBoard = BitBoard<U16, u64>;
+type ChessBoard = BitBoard<U8, u64>;
 
 fn backtracking_nqueens(last: &ChessBoard, row: usize) -> Option<ChessBoard> {
     let mut result = last.clone();
