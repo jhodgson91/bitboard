@@ -20,7 +20,7 @@ macro_rules! test_suite {
                 let initial = (0..SIZE).map(|n| (n, n)).collect();
                 let bb = TestBoard::new(initial);
                 for i in 0..SIZE {
-                    assert_eq!(bb.is_set(i, i), true);
+                    assert_eq!(bb.is_set((i, i)), true);
                 }
                 assert_eq!(bb.count_ones(), SIZE);
             }
@@ -41,56 +41,56 @@ macro_rules! test_suite {
             fn move_left_works() {
                 let mut bb = TestBoard::new(vec![(SIZE - 1, 0)]);
                 bb = &bb << Move::Left(SIZE - 1);
-                assert_eq!(bb.is_set(0, 0), true);
+                assert_eq!(bb.is_set((0, 0)), true);
             }
 
             #[test]
             fn move_right_works() {
                 let mut bb = TestBoard::new(vec![(0, 0)]);
                 bb = &bb << Move::Right(SIZE - 1);
-                assert_eq!(bb.is_set(SIZE - 1, 0), true);
+                assert_eq!(bb.is_set((SIZE - 1, 0)), true);
             }
 
             #[test]
             fn move_up_works() {
                 let mut bb = TestBoard::new(vec![(0, 0)]);
                 bb = &bb << Move::Up(SIZE - 1);
-                assert_eq!(bb.is_set(0, SIZE - 1), true);
+                assert_eq!(bb.is_set((0, SIZE - 1)), true);
             }
 
             #[test]
             fn move_down_works() {
                 let mut bb = TestBoard::new(vec![(0, SIZE - 1)]);
                 bb = &bb << Move::Down(SIZE - 1);
-                assert_eq!(bb.is_set(0, 0), true);
+                assert_eq!(bb.is_set((0, 0)), true);
             }
 
             #[test]
             fn move_upright_works() {
                 let mut bb = TestBoard::new(vec![(0, 0)]);
                 bb = &bb << Move::UpRight(SIZE - 1, SIZE - 1);
-                assert_eq!(bb.is_set(SIZE - 1, SIZE - 1), true);
+                assert_eq!(bb.is_set((SIZE - 1, SIZE - 1)), true);
             }
 
             #[test]
             fn move_upleft_works() {
                 let mut bb = TestBoard::new(vec![(SIZE - 1, 0)]);
                 bb = &bb << Move::UpLeft(SIZE - 1, SIZE - 1);
-                assert_eq!(bb.is_set(0, SIZE - 1), true);
+                assert_eq!(bb.is_set((0, SIZE - 1)), true);
             }
 
             #[test]
             fn move_downright_works() {
                 let mut bb = TestBoard::new(vec![(0, SIZE - 1)]);
                 bb = &bb << Move::DownRight(SIZE - 1, SIZE - 1);
-                assert_eq!(bb.is_set(SIZE - 1, 0), true);
+                assert_eq!(bb.is_set((SIZE - 1, 0)), true);
             }
 
             #[test]
             fn move_downleft_works() {
                 let mut bb = TestBoard::new(vec![(SIZE - 1, SIZE - 1)]);
                 bb = &bb << Move::DownLeft(SIZE - 1, SIZE - 1);
-                assert_eq!(bb.is_set(0, 0), true);
+                assert_eq!(bb.is_set((0, 0)), true);
             }
 
             #[test]

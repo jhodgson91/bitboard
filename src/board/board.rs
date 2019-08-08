@@ -32,7 +32,7 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
         }
     }
 
-    pub fn is_set(&self, x: usize, y: usize) -> bool {
+    pub fn is_set(&self, (x, y): (usize, usize)) -> bool {
         if Self::in_bounds(x, y) {
             let (offset, bit_pos) = Self::map_coords(x, y);
             self.blocks[offset] & bit_pos != R::zero()
@@ -57,16 +57,20 @@ impl<N: Unsigned, R: PrimUInt> BitBoard<N, R> {
         result
     }
 
+    pub fn cells(&self) -> impl DoubleEndedIterator<Item = (usize, usize)> {
+        (0..N::USIZE).flat_map(|x| (0..N::USIZE).map(move |y| (x, y)))
+    }
+
     fn in_bounds(x: usize, y: usize) -> bool {
         x < N::USIZE && y < N::USIZE
     }
 
     fn map_coords(x: usize, y: usize) -> (usize, R) {
         let pos = x + y * N::USIZE;
-        let byte_offset = pos / Self::BLOCK_SIZE_BITS;
+        let offset = pos / Self::BLOCK_SIZE_BITS;
         let bit_pos: R = R::one() << (pos % Self::BLOCK_SIZE_BITS);
 
-        (byte_offset, bit_pos)
+        (offset, bit_pos)
     }
 }
 
@@ -110,7 +114,7 @@ impl<N: Unsigned, R: PrimUInt> Display for BitBoard<N, R> {
 
         for c in 0..s {
             for r in 0..s {
-                if self.is_set(r, s - c - 1) {
+                if self.is_set((r, s - c - 1)) {
                     write!(f, "1 ")?;
                 } else {
                     write!(f, "0 ")?;

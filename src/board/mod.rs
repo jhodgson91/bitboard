@@ -33,6 +33,7 @@ impl PrimUInt for u16 {}
 impl PrimUInt for u32 {}
 impl PrimUInt for u64 {}
 impl PrimUInt for u128 {}
+
 mod board;
 mod moves;
 mod ops;
